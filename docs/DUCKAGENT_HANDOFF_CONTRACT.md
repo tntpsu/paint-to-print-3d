@@ -64,6 +64,7 @@ The handoff currently gates on:
 - duck-style flat bottom support is preserved
 - palette size is within the requested color range
 - paint regions are not over-fragmented
+- visual color confidence passes, meaning non-explicitly-cool duck concepts are not dominated by a blue/purple wash with no warm duck, beak, tan, brown, or orange detail
 
 Advisory gates may be added without breaking DuckAgent. New required gates should be treated as a contract change.
 

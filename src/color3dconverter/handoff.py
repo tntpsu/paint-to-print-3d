@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import colorsys
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import wrap
@@ -14,6 +16,23 @@ from .production import run_repaired_production_conversion
 
 
 HANDOFF_SCHEMA_VERSION = "duckagent.paint_to_print_handoff.v1"
+
+COOL_COLOR_INTENT_TERMS = {
+    "blue",
+    "purple",
+    "violet",
+    "indigo",
+    "navy",
+    "aqua",
+    "teal",
+    "turquoise",
+    "ice",
+    "frozen",
+    "galaxy",
+    "space",
+    "ocean",
+    "water",
+}
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -53,6 +72,124 @@ def _load_json(path_value: Any) -> dict[str, Any]:
         return {}
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _object_terms(object_name: str | None) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", str(object_name or "").lower()))
+
+
+def _palette_rows_from_reports(
+    *,
+    production_report: dict[str, Any],
+    conversion_report: dict[str, Any],
+) -> list[dict[str, Any]]:
+    palette = conversion_report.get("palette") or production_report.get("palette") or []
+    rows: list[dict[str, Any]] = []
+    for index, row in enumerate(palette):
+        if not isinstance(row, dict):
+            continue
+        rgb = row.get("rgb")
+        if not isinstance(rgb, (list, tuple)) or len(rgb) < 3:
+            continue
+        try:
+            color = [max(0, min(255, int(value))) for value in rgb[:3]]
+        except (TypeError, ValueError):
+            continue
+        rows.append(
+            {
+                "palette_index": int(row.get("palette_index") if row.get("palette_index") is not None else index),
+                "hex": str(row.get("hex") or f"#{color[0]:02X}{color[1]:02X}{color[2]:02X}"),
+                "rgb": color,
+                "face_count": max(0, int(row.get("face_count") or 0)),
+            }
+        )
+    return rows
+
+
+def _palette_color_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    total_faces = sum(int(row.get("face_count") or 0) for row in rows)
+    if total_faces <= 0:
+        total_faces = len(rows)
+
+    cool_weight = 0
+    warm_detail_weight = 0
+    light_neutral_weight = 0
+    hues: list[float] = []
+    for row in rows:
+        rgb = row.get("rgb") or [0, 0, 0]
+        r, g, b = [float(value) / 255.0 for value in rgb[:3]]
+        hue, saturation, value = colorsys.rgb_to_hsv(r, g, b)
+        hue_degrees = hue * 360.0
+        hues.append(hue_degrees)
+        weight = int(row.get("face_count") or 0) or 1
+        is_cool_wash = 185.0 <= hue_degrees <= 275.0 and b >= max(r, g) - 0.03 and value >= 0.62
+        is_warm_detail = (
+            (18.0 <= hue_degrees <= 78.0 and saturation >= 0.16 and value >= 0.28)
+            or (r >= g >= b and (r - b) >= 0.18 and value >= 0.25)
+        )
+        is_light_neutral = saturation <= 0.16 and value >= 0.72
+        if is_cool_wash:
+            cool_weight += weight
+        if is_warm_detail:
+            warm_detail_weight += weight
+        if is_light_neutral:
+            light_neutral_weight += weight
+
+    hue_span = max(hues) - min(hues) if hues else 0.0
+    return {
+        "palette_size": len(rows),
+        "palette_hexes": [str(row.get("hex")) for row in rows],
+        "cool_wash_share": round(float(cool_weight) / float(total_faces), 4) if total_faces else 0.0,
+        "warm_detail_share": round(float(warm_detail_weight) / float(total_faces), 4) if total_faces else 0.0,
+        "light_neutral_share": round(float(light_neutral_weight) / float(total_faces), 4) if total_faces else 0.0,
+        "hue_span_degrees": round(hue_span, 2),
+    }
+
+
+def _assess_visual_color_confidence(
+    *,
+    production_report: dict[str, Any],
+    conversion_report: dict[str, Any],
+    object_name: str | None,
+) -> dict[str, Any]:
+    rows = _palette_rows_from_reports(production_report=production_report, conversion_report=conversion_report)
+    profile = _palette_color_profile(rows)
+    terms = _object_terms(object_name)
+    has_duck_intent = "duck" in terms
+    explicitly_cool = bool(terms & COOL_COLOR_INTENT_TERMS)
+    duck_intent = conversion_report.get("duck_color_intent") or {}
+    beak_missing = has_duck_intent and duck_intent and duck_intent.get("beak_label") is None
+
+    reasons: list[str] = []
+    if not rows:
+        reasons.append("No palette rows were available for visual color confidence checks.")
+    if (
+        has_duck_intent
+        and not explicitly_cool
+        and profile["palette_size"] >= 3
+        and profile["cool_wash_share"] >= 0.82
+        and profile["warm_detail_share"] <= 0.05
+    ):
+        reasons.append("Palette is mostly cool blue/purple with almost no warm duck, beak, tan, brown, or orange detail.")
+    if (
+        has_duck_intent
+        and not explicitly_cool
+        and beak_missing
+        and profile["warm_detail_share"] <= 0.03
+    ):
+        reasons.append("Duck color-intent could not identify a beak or warm detail region.")
+
+    ready = not reasons
+    return {
+        "status": "ready" if ready else "review_required",
+        "ready": ready,
+        "object_name": object_name,
+        "object_terms": sorted(terms),
+        "explicitly_cool_intent": explicitly_cool,
+        "beak_missing": bool(beak_missing),
+        "reasons": reasons,
+        "profile": profile,
+    }
 
 
 def _write_source_preview(source_path: str | Path, texture_path: str | Path | None, output_path: Path) -> str:
@@ -212,6 +349,7 @@ def _build_handoff_gates(
     conversion_report: dict[str, Any],
     paint_intent_report: dict[str, Any],
     source_preview_path: str | None,
+    object_name: str | None,
     min_colors: int,
     max_colors: int,
 ) -> list[dict[str, Any]]:
@@ -231,6 +369,11 @@ def _build_handoff_gates(
     tiny_island_count = int(production_report.get("tiny_island_count") or conversion_report.get("tiny_island_count") or 0)
     largest_component_share = float(production_report.get("largest_component_share") or conversion_report.get("largest_component_share") or 0.0)
     max_components = max(palette_size * 48, palette_size + 8)
+    visual_color_confidence = _assess_visual_color_confidence(
+        production_report=production_report,
+        conversion_report=conversion_report,
+        object_name=object_name,
+    )
 
     return [
         _gate(
@@ -275,6 +418,16 @@ def _build_handoff_gates(
                 "largest_component_share": largest_component_share,
                 "min_largest_component_share": 0.08,
             },
+        ),
+        _gate(
+            "visual_color_confidence",
+            passed=visual_color_confidence.get("ready") is True,
+            summary=(
+                "Palette color families look plausible for automated handoff."
+                if visual_color_confidence.get("ready") is True
+                else "Palette color families look suspicious; hold for visual review before printing."
+            ),
+            details=visual_color_confidence,
         ),
         _gate(
             "source_preview_available",
@@ -341,6 +494,7 @@ def run_duckagent_handoff(
         conversion_report=conversion_report,
         paint_intent_report=paint_intent_report,
         source_preview_path=source_preview_path,
+        object_name=object_name,
         min_colors=min_colors,
         max_colors=max_colors,
     )
@@ -392,6 +546,9 @@ def run_duckagent_handoff(
             "bottom_flatness_status": bottom_flatness.get("status"),
             "bambu_validation_status": (production_report.get("bambu_material_validation") or {}).get("status"),
             "transfer_assessment_status": (production_report.get("transfer_assessment") or {}).get("status"),
+            "visual_color_confidence_status": (
+                next((gate.get("details") or {} for gate in gates if gate.get("id") == "visual_color_confidence"), {}).get("status")
+            ),
         },
         "gates": gates,
         "artifacts": artifacts,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from color3dconverter.handoff import HANDOFF_SCHEMA_VERSION, run_duckagent_handoff
+from color3dconverter.handoff import HANDOFF_SCHEMA_VERSION, _assess_visual_color_confidence, run_duckagent_handoff
 
 
 def _write_subdivided_box_obj(root: Path, *, divisions: int = 3) -> Path:
@@ -117,5 +117,69 @@ def test_run_duckagent_handoff_writes_manifest_and_qa_board(tmp_path: Path) -> N
         "required_artifacts_exist",
         "bambu_material_bundle_valid",
         "flat_bottom_support_preserved",
+        "visual_color_confidence",
         "qa_board_written",
     }
+
+
+def test_visual_color_confidence_holds_cool_wash_duck_palette() -> None:
+    conversion_report = {
+        "palette": [
+            {"palette_index": 0, "hex": "#BBBBFF", "rgb": [187, 187, 255], "face_count": 97000},
+            {"palette_index": 1, "hex": "#BCBBFF", "rgb": [188, 187, 255], "face_count": 60000},
+            {"palette_index": 2, "hex": "#CBDFF1", "rgb": [203, 223, 241], "face_count": 120},
+        ],
+        "duck_color_intent": {"beak_label": None},
+    }
+
+    assessment = _assess_visual_color_confidence(
+        production_report={},
+        conversion_report=conversion_report,
+        object_name="Cowgirl Duck with Hat",
+    )
+
+    assert assessment["ready"] is False
+    assert assessment["status"] == "review_required"
+    assert assessment["profile"]["cool_wash_share"] > 0.82
+    assert any("cool blue/purple" in reason for reason in assessment["reasons"])
+
+
+def test_visual_color_confidence_allows_explicit_purple_duck_palette() -> None:
+    conversion_report = {
+        "palette": [
+            {"palette_index": 0, "hex": "#BBBBFF", "rgb": [187, 187, 255], "face_count": 97000},
+            {"palette_index": 1, "hex": "#BCBBFF", "rgb": [188, 187, 255], "face_count": 60000},
+            {"palette_index": 2, "hex": "#A7BBFC", "rgb": [167, 187, 252], "face_count": 3000},
+        ],
+        "duck_color_intent": {"beak_label": None},
+    }
+
+    assessment = _assess_visual_color_confidence(
+        production_report={},
+        conversion_report=conversion_report,
+        object_name="Purple Galaxy Duck",
+    )
+
+    assert assessment["ready"] is True
+    assert assessment["explicitly_cool_intent"] is True
+
+
+def test_visual_color_confidence_allows_warm_duck_palette() -> None:
+    conversion_report = {
+        "palette": [
+            {"palette_index": 0, "hex": "#F0CD37", "rgb": [240, 205, 55], "face_count": 70000},
+            {"palette_index": 1, "hex": "#E66A23", "rgb": [230, 106, 35], "face_count": 10000},
+            {"palette_index": 2, "hex": "#6B3F1E", "rgb": [107, 63, 30], "face_count": 20000},
+            {"palette_index": 3, "hex": "#2E5CCF", "rgb": [46, 92, 207], "face_count": 15000},
+        ],
+        "duck_color_intent": {"beak_label": 1},
+    }
+
+    assessment = _assess_visual_color_confidence(
+        production_report={},
+        conversion_report=conversion_report,
+        object_name="Cowgirl Duck with Hat",
+    )
+
+    assert assessment["ready"] is True
+    assert assessment["profile"]["warm_detail_share"] > 0.05
