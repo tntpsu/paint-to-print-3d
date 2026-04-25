@@ -335,13 +335,16 @@ Current implementation status as of 2026-04-24:
 - `convert-repaired-transfer` exists as a direct CLI/API bridge from textured source model plus repaired target geometry to grouped OBJ/MTL and colorgroup 3MF
 - untextured repaired target OBJ input is supported by `load_geometry_model`
 - reusable legacy source-region extraction exists via `SourceFaceRegionModel`
+- region ownership transfer uses a KD-tree nearest-neighbor search instead of chunked all-pairs face matching
+- bold cowgirl repaired-transfer bridge run completed successfully on the 1.17M-face repaired mesh, improving from about 145 seconds to about 90 seconds after the KD-tree change
 - full local test suite passes with the bridge in place
 
 The next implementation should be:
 
 1. run `convert-repaired-transfer` on bold cowgirl and compare against current repaired transfer and single-source legacy
-2. if it wins visually, make DuckAgent prefer the repaired transfer lane
-3. if it does not win, keep the bridge as an evaluation lane and build the lane chooser around same-mesh fallback
-4. extend `SourceFaceRegionModel` into corner-bake and blender-like source setup if those strategies become the winning candidates
+2. add a face-count or decimation gate before DuckAgent runs repaired transfer automatically
+3. if it wins visually, make DuckAgent prefer the repaired transfer lane
+4. if it does not win, keep the bridge as an evaluation lane and build the lane chooser around same-mesh fallback
+5. extend `SourceFaceRegionModel` into corner-bake and blender-like source setup if those strategies become the winning candidates
 
 That is the most direct path to success from the evidence we have today.

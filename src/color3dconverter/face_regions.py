@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 
 def sample_texture(texture_rgb: np.ndarray, texcoords: np.ndarray) -> np.ndarray:
@@ -292,15 +293,19 @@ def transfer_face_region_ownership(
     source_area_weights = np.clip(0.5 + source_area_weights, 0.5, 1.5)
 
     neighbor_count = max(1, min(int(neighbors), source_face_count))
+    source_tree = cKDTree(source_centroids.astype(np.float32, copy=False))
     target_component_ids = np.zeros((target_face_count,), dtype=np.int32)
     label_scores = np.zeros((target_face_count, label_count), dtype=np.float32) if return_label_scores and label_count > 0 else None
     for start in range(0, target_face_count, chunk_size):
         stop = min(start + chunk_size, target_face_count)
         centroid_chunk = target_centroids[start:stop]
         normal_chunk = target_normals[start:stop]
-        distances = ((centroid_chunk[:, None, :] - source_centroids[None, :, :]) ** 2).sum(axis=2)
-        nearest = np.argpartition(distances, kth=neighbor_count - 1, axis=1)[:, :neighbor_count]
-        nearest_distances = np.take_along_axis(distances, nearest, axis=1)
+        nearest_distances, nearest = source_tree.query(centroid_chunk.astype(np.float32, copy=False), k=neighbor_count)
+        if neighbor_count == 1:
+            nearest_distances = nearest_distances[:, None]
+            nearest = nearest[:, None]
+        nearest_distances = np.asarray(nearest_distances, dtype=np.float32) ** 2
+        nearest = np.asarray(nearest, dtype=np.int64)
         nearest_components = source_component_ids[nearest]
         nearest_normals = source_normals[nearest]
         normal_alignment = np.clip((nearest_normals * normal_chunk[:, None, :]).sum(axis=2), -1.0, 1.0)
