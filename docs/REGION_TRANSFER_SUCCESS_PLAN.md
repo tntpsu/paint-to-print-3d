@@ -334,13 +334,14 @@ Current implementation status as of 2026-04-24:
 - `geometry_transfer_legacy_face_regions` exists in `3dcolorconverter`
 - `convert-repaired-transfer` exists as a direct CLI/API bridge from textured source model plus repaired target geometry to grouped OBJ/MTL and colorgroup 3MF
 - untextured repaired target OBJ input is supported by `load_geometry_model`
+- reusable legacy source-region extraction exists via `SourceFaceRegionModel`
 - full local test suite passes with the bridge in place
 
 The next implementation should be:
 
-1. add a reusable source-region extraction object to reduce duplicated source-label setup across transfer strategies
-2. run `convert-repaired-transfer` on bold cowgirl and compare against current repaired transfer and single-source legacy
-3. if it wins visually, make DuckAgent prefer the repaired transfer lane
-4. if it does not win, keep the bridge as an evaluation lane and build the lane chooser around same-mesh fallback
+1. run `convert-repaired-transfer` on bold cowgirl and compare against current repaired transfer and single-source legacy
+2. if it wins visually, make DuckAgent prefer the repaired transfer lane
+3. if it does not win, keep the bridge as an evaluation lane and build the lane chooser around same-mesh fallback
+4. extend `SourceFaceRegionModel` into corner-bake and blender-like source setup if those strategies become the winning candidates
 
 That is the most direct path to success from the evidence we have today.

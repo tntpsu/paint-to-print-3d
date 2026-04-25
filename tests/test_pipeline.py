@@ -537,6 +537,7 @@ def test_convert_color_transferred_mesh_to_assets_legacy_fast_strategy(tmp_path:
     assert report["strategy"] == "geometry_transfer_legacy_face_regions"
     assert report["legacy_fast_path"] is True
     assert report["region_transfer_mode"] == "connected_face_regions"
+    assert report["source_region_model"] == "legacy_fast_face_regions"
     assert set(report["duck_part_anchor_labels"].keys()) == {"body", "bandana", "hat", "beak"}
     assert report["color_transfer_applied"] is True
     assert Path(report["obj_path"]).exists()

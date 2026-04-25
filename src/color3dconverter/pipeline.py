@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 import json
 from pathlib import Path
 from time import perf_counter
@@ -45,6 +46,14 @@ from .face_regions import (
 )
 from .model_io import LoadedTexturedMesh, load_geometry_model, load_textured_model
 from .regions import assign_faces_to_texture_regions, build_texture_regions, clean_texture_regions
+
+
+@dataclass(frozen=True)
+class SourceFaceRegionModel:
+    palette: np.ndarray
+    face_labels: np.ndarray
+    anchor_labels: dict[str, int | None]
+    metadata: dict[str, Any]
 
 
 def _legacy_find_distinct_colors(colors: np.ndarray, threshold: float = 30.0) -> list[np.ndarray]:
@@ -120,6 +129,29 @@ def _legacy_assign_face_labels(faces: np.ndarray, vertex_labels: np.ndarray) -> 
         )
         face_labels[face_index] = int(label_counts.most_common(1)[0][0])
     return face_labels
+
+
+def _build_legacy_source_face_region_model(color_source_loaded: LoadedTexturedMesh, *, max_colors: int) -> SourceFaceRegionModel:
+    posterized_texture = _legacy_posterize_texture(color_source_loaded.texture_rgb, image_palette=max_colors)
+    source_vertex_colors = _legacy_sample_vertex_colors(posterized_texture, color_source_loaded.texcoords)
+    palette, source_vertex_labels = _legacy_quantize_vertex_colors(source_vertex_colors, num_colors=max_colors)
+    source_face_labels = _legacy_assign_face_labels(color_source_loaded.faces, source_vertex_labels)
+    anchor_labels = _infer_duck_part_anchor_labels(
+        face_labels=source_face_labels,
+        palette=palette,
+        positions=color_source_loaded.positions,
+        faces=color_source_loaded.faces,
+    )
+    return SourceFaceRegionModel(
+        palette=np.asarray(palette, dtype=np.uint8),
+        face_labels=np.asarray(source_face_labels, dtype=np.int32),
+        anchor_labels=anchor_labels,
+        metadata={
+            "source_region_model": "legacy_fast_face_regions",
+            "source_palette_size": int(len(palette)),
+            "source_face_label_count": int(len(np.unique(source_face_labels))) if len(source_face_labels) else 0,
+        },
+    )
 
 
 def _quantize_face_colors(face_colors: np.ndarray, positions: np.ndarray, faces: np.ndarray, num_colors: int) -> tuple[np.ndarray, np.ndarray]:
@@ -1675,16 +1707,10 @@ def convert_color_transferred_mesh_to_assets(
             },
         )
     if strategy in {"legacy_fast_face_labels", "legacy_face_regions"}:
-        posterized_texture = _legacy_posterize_texture(color_source_loaded.texture_rgb, image_palette=max_colors)
-        source_vertex_colors = _legacy_sample_vertex_colors(posterized_texture, color_source_loaded.texcoords)
-        palette, source_vertex_labels = _legacy_quantize_vertex_colors(source_vertex_colors, num_colors=max_colors)
-        source_face_labels = _legacy_assign_face_labels(color_source_loaded.faces, source_vertex_labels)
-        anchor_labels = _infer_duck_part_anchor_labels(
-            face_labels=source_face_labels,
-            palette=palette,
-            positions=color_source_loaded.positions,
-            faces=color_source_loaded.faces,
-        )
+        source_regions = _build_legacy_source_face_region_model(color_source_loaded, max_colors=max_colors)
+        palette = source_regions.palette
+        source_face_labels = source_regions.face_labels
+        anchor_labels = source_regions.anchor_labels
         transferred = transfer_face_region_ownership(
             source_positions=color_source_loaded.positions,
             source_faces=color_source_loaded.faces,
@@ -1753,19 +1779,14 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "connected_face_regions",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                **source_regions.metadata,
             },
         )
     if strategy in {"legacy_face_regions_graph", "geometry_transfer_legacy_face_regions_graph"}:
-        posterized_texture = _legacy_posterize_texture(color_source_loaded.texture_rgb, image_palette=max_colors)
-        source_vertex_colors = _legacy_sample_vertex_colors(posterized_texture, color_source_loaded.texcoords)
-        palette, source_vertex_labels = _legacy_quantize_vertex_colors(source_vertex_colors, num_colors=max_colors)
-        source_face_labels = _legacy_assign_face_labels(color_source_loaded.faces, source_vertex_labels)
-        anchor_labels = _infer_duck_part_anchor_labels(
-            face_labels=source_face_labels,
-            palette=palette,
-            positions=color_source_loaded.positions,
-            faces=color_source_loaded.faces,
-        )
+        source_regions = _build_legacy_source_face_region_model(color_source_loaded, max_colors=max_colors)
+        palette = source_regions.palette
+        source_face_labels = source_regions.face_labels
+        anchor_labels = source_regions.anchor_labels
         transferred = transfer_face_region_ownership(
             source_positions=color_source_loaded.positions,
             source_faces=color_source_loaded.faces,
@@ -1849,6 +1870,7 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "connected_face_regions_graph",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                **source_regions.metadata,
             },
         )
     if strategy in {"blender_like_bake_face_labels", "blender_like_bake_face_regions"}:
