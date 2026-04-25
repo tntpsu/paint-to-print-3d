@@ -961,6 +961,46 @@ def test_duck_color_intent_preserves_light_neutral_details() -> None:
     assert metadata["reassigned_faces"] == 3
 
 
+def test_duck_color_intent_handles_missing_beak_label() -> None:
+    def triangle_at(normalized_center: tuple[float, float, float]) -> np.ndarray:
+        center = np.asarray(normalized_center, dtype=np.float32) * 2.0
+        return np.array(
+            [
+                center + np.array([0.000, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.010, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.000, 0.010, 0.000], dtype=np.float32),
+            ],
+            dtype=np.float32,
+        )
+
+    centers = [
+        (-0.50, -0.50, -0.50),
+        (0.00, 0.00, 0.00),
+        (0.12, 0.00, 0.00),
+    ]
+    positions = np.vstack([triangle_at(center) for center in centers])
+    faces = np.array([[index * 3, index * 3 + 1, index * 3 + 2] for index in range(len(centers))], dtype=np.int64)
+    palette = np.array(
+        [
+            [0x32, 0x4F, 0x7C],  # blue body
+            [0x55, 0x55, 0x58],  # neutral accessory, not an orange beak
+            [0x64, 0x00, 0x50],  # red/purple face speck artifact, not orange
+        ],
+        dtype=np.uint8,
+    )
+    labels = np.array([0, 0, 2], dtype=np.int32)
+
+    cleaned, metadata = _apply_duck_color_intent_rules(
+        face_labels=labels,
+        palette=palette,
+        positions=positions,
+        faces=faces,
+    )
+
+    assert metadata["beak_label"] is None
+    assert len(cleaned) == len(labels)
+
+
 def test_duck_color_intent_uses_dominant_body_color_not_always_blue() -> None:
     def triangle_at(normalized_center: tuple[float, float, float]) -> np.ndarray:
         center = np.asarray(normalized_center, dtype=np.float32) * 2.0

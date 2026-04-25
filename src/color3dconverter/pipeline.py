@@ -641,7 +641,7 @@ def _apply_duck_color_intent_rules(
             should_reassign = True
             reason = "small_red_head_mark"
         elif (
-            int(label) != int(beak_label)
+            (beak_label is None or int(label) != int(beak_label))
             and float(signals["red"]) >= 0.16
             and zone_face_share >= 0.80
             and zone_beak_share < 0.35
