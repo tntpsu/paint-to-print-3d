@@ -52,6 +52,18 @@ python -m color3dconverter.cli convert-production \
   --quality-threshold 0.02
 ```
 
+Run the repaired-geometry transfer lane when you already have a textured source model plus a repaired target mesh. The target mesh can be an untextured OBJ; the source model supplies the color regions:
+
+```bash
+PYTHONPATH=/Users/philtullai/ai-agents/3dcolorconverter/src \
+python -m color3dconverter.cli convert-repaired-transfer \
+  /path/to/source.glb \
+  /path/to/repaired_target.obj \
+  --out-dir /path/to/output \
+  --max-colors 12 \
+  --strategy legacy_fast_face_labels
+```
+
 Convert a packaged OBJ ZIP:
 
 ```bash
@@ -239,6 +251,11 @@ The repaired shading-model lane is currently a research path:
 - the current best shared recipe is an ExtraTrees direct-RGB model trained on multiple aligned provider pairs with 10k samples per pair
 - it is promising for raw textured mesh -> repaired colored OBJ reproduction
 - it is not yet claimed as production-ready
+
+The `convert-repaired-transfer` command is the explicit evaluation bridge for that harder lane:
+- it writes grouped OBJ/MTL and colorgroup 3MF assets from source art plus repaired target geometry
+- it records `conversion_lane: repaired_geometry_region_transfer` in the report
+- it is still gated by visual review and benchmark evidence before DuckAgent should treat it as automatic production output
 
 ## How DuckAgent Uses It
 

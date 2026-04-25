@@ -275,6 +275,65 @@ def load_textured_objzip(zip_path: str | Path) -> LoadedTexturedMesh:
         )
 
 
+def _white_texture() -> np.ndarray:
+    return np.full((1, 1, 3), 255, dtype=np.uint8)
+
+
+def _fallback_texcoords(vertex_count: int) -> np.ndarray:
+    return np.zeros((max(int(vertex_count), 0), 2), dtype=np.float32)
+
+
+def load_geometry_model(source_path: str | Path, texture_path: str | Path | None = None) -> LoadedTexturedMesh:
+    path = Path(source_path).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    suffix = path.suffix.lower()
+    if suffix == ".glb":
+        try:
+            return load_textured_glb(path)
+        except Exception:
+            pass
+    if suffix == ".obj":
+        try:
+            return load_textured_obj(path, texture_path=texture_path)
+        except Exception:
+            pass
+    if suffix in {".zip", ".objzip"}:
+        try:
+            return load_textured_objzip(path)
+        except Exception:
+            pass
+
+    mesh = _as_trimesh(trimesh.load(str(path), force="mesh"))
+    texcoords = getattr(mesh.visual, "uv", None)
+    if texcoords is None or len(texcoords) != len(mesh.vertices):
+        texcoords = _fallback_texcoords(len(mesh.vertices))
+
+    resolved_texture_path = Path(texture_path).expanduser().resolve() if texture_path else None
+    texture_rgb = (
+        np.array(Image.open(resolved_texture_path).convert("RGB"), dtype=np.uint8)
+        if resolved_texture_path
+        else _white_texture()
+    )
+    return LoadedTexturedMesh(
+        mesh=mesh,
+        positions=np.asarray(mesh.vertices, dtype=np.float32),
+        faces=np.asarray(mesh.faces, dtype=np.int64),
+        texcoords=np.asarray(texcoords, dtype=np.float32),
+        texture_rgb=texture_rgb,
+        normal_texture_rgb=None,
+        orm_texture_rgb=None,
+        base_color_factor=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32),
+        metallic_factor=1.0,
+        roughness_factor=1.0,
+        normal_scale=1.0,
+        source_path=path,
+        texture_path=resolved_texture_path,
+        source_format=(suffix.lstrip(".") or "mesh"),
+    )
+
+
 def load_textured_model(source_path: str | Path, texture_path: str | Path | None = None) -> LoadedTexturedMesh:
     path = Path(source_path).expanduser().resolve()
     suffix = path.suffix.lower()

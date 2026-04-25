@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -12,6 +13,7 @@ from color3dconverter.pipeline import (
     convert_color_transferred_mesh_to_assets,
     convert_loaded_mesh_to_color_assets,
     convert_model_to_color_assets,
+    convert_repaired_color_transfer_to_assets,
     convert_textured_obj_to_region_assets,
 )
 from color3dconverter.validation import write_bambu_validation_bundle
@@ -539,6 +541,63 @@ def test_convert_color_transferred_mesh_to_assets_legacy_fast_strategy(tmp_path:
     assert report["color_transfer_applied"] is True
     assert Path(report["obj_path"]).exists()
     assert Path(report["threemf_path"]).exists()
+
+
+def test_convert_repaired_color_transfer_accepts_untextured_target_obj(tmp_path: Path) -> None:
+    source_obj = tmp_path / "source.obj"
+    source_mtl = tmp_path / "source.mtl"
+    source_texture = tmp_path / "source_texture.png"
+    target_obj = tmp_path / "target.obj"
+
+    texture = Image.new("RGB", (2, 2), (255, 0, 0))
+    texture.save(source_texture)
+    source_mtl.write_text("newmtl Material\nmap_Kd source_texture.png\n", encoding="utf-8")
+    source_obj.write_text(
+        "\n".join(
+            [
+                "mtllib source.mtl",
+                "v 0 0 0",
+                "v 1 0 0",
+                "v 0 1 0",
+                "vt 0 1",
+                "vt 1 1",
+                "vt 0 0",
+                "usemtl Material",
+                "f 1/1 2/2 3/3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    target_obj.write_text(
+        "\n".join(
+            [
+                "v 0 0 0.05",
+                "v 1 0 0.05",
+                "v 0 1 0.05",
+                "f 1 2 3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = convert_repaired_color_transfer_to_assets(
+        source_obj,
+        target_obj,
+        out_dir=tmp_path / "repaired_transfer",
+        max_colors=4,
+        strategy="legacy_fast_face_labels",
+        object_name="Repaired Transfer Duck",
+    )
+
+    assert report["conversion_lane"] == "repaired_geometry_region_transfer"
+    assert report["target_path"] == str(target_obj.resolve())
+    assert report["target_texture_path"] is None
+    assert Path(report["obj_path"]).exists()
+    assert Path(report["threemf_path"]).exists()
+    saved = json.loads(Path(report["report_path"]).read_text(encoding="utf-8"))
+    assert saved["conversion_lane"] == "repaired_geometry_region_transfer"
 
 
 def test_convert_color_transferred_mesh_to_assets_blender_like_bake_strategy(tmp_path: Path) -> None:

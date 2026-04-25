@@ -12,7 +12,7 @@ from .benchmark import (
     run_surface_bake_experiments,
 )
 from .fixtures import list_benchmark_fixtures
-from .pipeline import convert_model_to_color_assets
+from .pipeline import convert_model_to_color_assets, convert_repaired_color_transfer_to_assets
 from .production import run_production_conversion
 from .provider_oracle import run_provider_oracle_experiments
 from .repair_then_bake import run_repair_then_bake_experiment
@@ -46,6 +46,35 @@ def main() -> None:
     production_parser.add_argument("--object-name")
     production_parser.add_argument("--quality-threshold", type=float, default=0.02)
     production_parser.add_argument("--no-fail-closed", action="store_true")
+
+    repaired_parser = subparsers.add_parser("convert-repaired-transfer", help="Transfer colors from a textured source model onto repaired target geometry.")
+    repaired_parser.add_argument("color_source_path")
+    repaired_parser.add_argument("target_path")
+    repaired_parser.add_argument("--source-texture-path")
+    repaired_parser.add_argument("--target-texture-path")
+    repaired_parser.add_argument("--out-dir", required=True)
+    repaired_parser.add_argument("--max-colors", type=int, default=12)
+    repaired_parser.add_argument(
+        "--strategy",
+        choices=[
+            "legacy_fast_face_labels",
+            "legacy_face_regions",
+            "legacy_face_regions_graph",
+            "legacy_corner_face_regions",
+            "blender_like_bake_face_labels",
+            "blender_like_bake_face_regions",
+            "duck_semantic_parts",
+            "duck_seeded_parts",
+            "geometry_transfer_legacy_face_regions_graph",
+            "geometry_transfer_legacy_corner_face_regions",
+            "geometry_transfer_blender_like_bake_face_regions",
+            "geometry_transfer_duck_semantic_parts",
+            "geometry_transfer_duck_seeded_parts",
+            "region_first",
+        ],
+        default="legacy_fast_face_labels",
+    )
+    repaired_parser.add_argument("--object-name")
 
     benchmark_parser = subparsers.add_parser("benchmark", help="Run the synthetic fixture benchmark ladder.")
     benchmark_parser.add_argument("--out-dir", required=True)
@@ -144,6 +173,18 @@ def main() -> None:
             object_name=args.object_name,
             quality_threshold=args.quality_threshold,
             fail_closed=not bool(args.no_fail_closed),
+        )
+        print(json.dumps(report, indent=2))
+    elif args.command == "convert-repaired-transfer":
+        report = convert_repaired_color_transfer_to_assets(
+            args.color_source_path,
+            args.target_path,
+            color_source_texture_path=args.source_texture_path,
+            target_texture_path=args.target_texture_path,
+            out_dir=args.out_dir,
+            max_colors=args.max_colors,
+            strategy=args.strategy,
+            object_name=args.object_name,
         )
         print(json.dumps(report, indent=2))
     elif args.command == "convert-model":

@@ -43,7 +43,7 @@ from .face_regions import (
     transfer_vertex_colors_from_source,
     weighted_kmeans_palette,
 )
-from .model_io import LoadedTexturedMesh, load_textured_model
+from .model_io import LoadedTexturedMesh, load_geometry_model, load_textured_model
 from .regions import assign_faces_to_texture_regions, build_texture_regions, clean_texture_regions
 
 
@@ -2010,6 +2010,52 @@ def convert_color_transferred_mesh_to_assets(
                 "target_vertex_count": int(len(target_loaded.positions)),
             },
         )
+
+
+def convert_repaired_color_transfer_to_assets(
+    color_source_path: str | Path,
+    target_path: str | Path,
+    *,
+    color_source_texture_path: str | Path | None = None,
+    target_texture_path: str | Path | None = None,
+    out_dir: str | Path | None = None,
+    max_colors: int = 12,
+    strategy: str = "legacy_fast_face_labels",
+    object_name: str | None = None,
+    obj_filename: str = "region_materials.obj",
+    threemf_filename: str = "region_colorgroup.3mf",
+    preview_filename: str = "region_preview.png",
+    swatch_filename: str = "palette_swatches.png",
+    palette_csv_filename: str = "palette.csv",
+    report_filename: str = "conversion_report.json",
+) -> dict[str, Any]:
+    color_source_loaded = load_textured_model(color_source_path, texture_path=color_source_texture_path)
+    target_loaded = load_geometry_model(target_path, texture_path=target_texture_path)
+    report = convert_color_transferred_mesh_to_assets(
+        target_loaded=target_loaded,
+        color_source_loaded=color_source_loaded,
+        out_dir=out_dir,
+        max_colors=max_colors,
+        strategy=strategy,
+        object_name=object_name,
+        obj_filename=obj_filename,
+        threemf_filename=threemf_filename,
+        preview_filename=preview_filename,
+        swatch_filename=swatch_filename,
+        palette_csv_filename=palette_csv_filename,
+        report_filename=report_filename,
+    )
+    report.update(
+        {
+            "conversion_lane": "repaired_geometry_region_transfer",
+            "target_path": str(target_loaded.source_path),
+            "target_source_format": target_loaded.source_format,
+            "target_texture_path": str(target_loaded.texture_path) if target_loaded.texture_path else None,
+        }
+    )
+    report_path = Path(str(report["report_path"]))
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
 
 
 def convert_model_to_color_assets(
