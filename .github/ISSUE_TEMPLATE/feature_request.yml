@@ -1,0 +1,27 @@
+name: Feature Request
+description: Suggest an import/export, cleanup, validation, or workflow improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that paint-to-print-3d does not support well yet?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would a good solution look like?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives tried
+      description: Have you tried another converter, slicer workflow, or manual process?
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example assets or references
+      description: Link to public sample assets or screenshots if you can share them.

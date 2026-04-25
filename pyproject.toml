@@ -12,6 +12,30 @@ license = { text = "MIT" }
 authors = [
   { name = "Phil Tullai" }
 ]
+keywords = [
+  "3d-printing",
+  "bambu-lab",
+  "3mf",
+  "obj",
+  "glb",
+  "mesh-processing",
+  "texture-baking",
+  "color-quantization",
+  "multicolor-printing",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Manufacturing",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Graphics :: 3D Modeling",
+  "Topic :: Scientific/Engineering :: Image Processing",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
   "numpy>=1.24",
   "Pillow>=10.0",
@@ -29,6 +53,12 @@ dev = [
 [project.scripts]
 paint-to-print-3d = "color3dconverter.cli:main"
 3dcolorconverter = "color3dconverter.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tntpsu/paint-to-print-3d"
+Repository = "https://github.com/tntpsu/paint-to-print-3d"
+Issues = "https://github.com/tntpsu/paint-to-print-3d/issues"
+Documentation = "https://github.com/tntpsu/paint-to-print-3d#readme"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

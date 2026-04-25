@@ -15,10 +15,10 @@ This file tracks real model checks for the repaired production lane so the conve
 
 | Sample | Status | Main Finding | Output |
 | --- | --- | --- | --- |
-| Captain America duck | Ready | Smoothing plus paint-intent cleanup preserves shield/star/white details while removing gray head-cap artifacts. | `/Users/philtullai/ai-agents/paint-to-print-3d/outputs/captain_duck_smooth_duck_intent_v11/selected` |
-| Polo duck | Ready | The policy now chooses the dominant body color instead of assuming the body is blue, so yellow duck plus blue shirt works. | `/Users/philtullai/ai-agents/paint-to-print-3d/outputs/generalization_duck_polo_v2/selected` |
-| Spa duck | Review recommended | Geometry is watertight and flat-bottomed, and towel/cucumber intent is visible, but tiny island count is too high for auto print-readiness. | `/Users/philtullai/ai-agents/paint-to-print-3d/outputs/generalization_spa_duck_v1/selected` |
-| Spa duck cleanup smoke | Review recommended | Deterministic cleanup reduced components from 2,615 to 270 and tiny islands from 2,518 to 237, but correctly did not promote because the tiny-island gate is still 96. | `/Users/philtullai/ai-agents/paint-to-print-3d/outputs/generalization_spa_duck_cleanup_v1/_cleanup_candidates/paint_region_cleanup` |
+| Captain America duck | Ready | Smoothing plus paint-intent cleanup preserves shield/star/white details while removing gray head-cap artifacts. | `outputs/captain_duck_smooth_duck_intent_v11/selected` |
+| Polo duck | Ready | The policy now chooses the dominant body color instead of assuming the body is blue, so yellow duck plus blue shirt works. | `outputs/generalization_duck_polo_v2/selected` |
+| Spa duck | Review recommended | Geometry is watertight and flat-bottomed, and towel/cucumber intent is visible, but tiny island count is too high for auto print-readiness. | `outputs/generalization_spa_duck_v1/selected` |
+| Spa duck cleanup smoke | Review recommended | Deterministic cleanup reduced components from 2,615 to 270 and tiny islands from 2,518 to 237, but correctly did not promote because the tiny-island gate is still 96. | `outputs/generalization_spa_duck_cleanup_v1/_cleanup_candidates/paint_region_cleanup` |
 
 ## Lessons
 

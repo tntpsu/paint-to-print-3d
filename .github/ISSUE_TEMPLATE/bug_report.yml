@@ -1,0 +1,50 @@
+name: Bug Report
+description: Report a conversion, export, or slicer compatibility issue.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The command you ran, if applicable.
+      placeholder: PYTHONPATH=src python -m color3dconverter.cli convert-model ...
+  - type: dropdown
+    id: input_format
+    attributes:
+      label: Input format
+      options:
+        - GLB
+        - OBJ + MTL + texture
+        - OBJ ZIP
+        - Existing face-color mesh
+        - Other
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Helpful artifacts
+      description: Paste relevant report snippets, screenshots, or slicer messages. Do not attach private/licensed models unless you can share them.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: macOS 15, Python 3.12, Bambu Studio 2.x

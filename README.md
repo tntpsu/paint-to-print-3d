@@ -1,16 +1,22 @@
 # paint-to-print-3d
 
-Convert textured 3D models into cleaner, printable color regions for Bambu-style multicolor workflows.
+[![CI](https://github.com/tntpsu/paint-to-print-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/tntpsu/paint-to-print-3d/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-The package focuses on one problem:
+Convert textured OBJ/GLB models into cleaner Bambu-friendly multicolor 3D print assets.
 
-`textured mesh -> cleaner printable paint regions -> grouped export assets`
+The package focuses on one practical workflow:
 
-The project/package name is `paint-to-print-3d`; the Python import package remains `color3dconverter` so existing integrations do not break. The new CLI entry point is `paint-to-print-3d`, with `3dcolorconverter` kept as a legacy alias for now.
+`textured mesh -> cleaner printable paint regions -> grouped OBJ/MTL + 3MF colorgroup assets`
 
-This repo was carved out of two internal codebases:
-- [3dcolor](/Users/philtullai/ai-agents/3dcolor), which explored texture baking, region segmentation, and grouped OBJ exports
-- [duckAgent](/Users/philtullai/ai-agents/duckAgent), which added standards-based `colorgroup` 3MF export, validation probes, and operator-facing preview tooling
+It is meant for makers and developers experimenting with AI-generated or texture-painted models that need to become more practical multicolor print inputs.
+
+The project/package name is `paint-to-print-3d`; the Python import package remains `color3dconverter` for compatibility. The preferred CLI entry point is `paint-to-print-3d`, with `3dcolorconverter` kept as a legacy alias for now.
+
+## Why It Exists
+
+Many AI or texture-painted 3D models look good on screen but import poorly into slicers: too many tiny color islands, unclear material groups, or color data trapped in textures. This project turns that artwork into inspectable print assets with reports that explain whether the output is actually ready to try in Bambu Studio.
 
 ## What It Does Today
 
@@ -47,8 +53,7 @@ python -m color3dconverter.cli convert-model \
 Run the production same-mesh converter. This uses the stable `legacy_fast_face_labels` core, tries a fixed candidate set, compares each candidate against an internally rendered source preview, and only marks the result production-ready when the drift stays under the threshold:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli convert-production \
+PYTHONPATH=src python -m color3dconverter.cli convert-production \
   /path/to/model.glb \
   --out-dir /path/to/output \
   --quality-threshold 0.02
@@ -57,8 +62,7 @@ python -m color3dconverter.cli convert-production \
 Run the repaired-geometry transfer lane when you already have a textured source model plus a repaired target mesh. The target mesh can be an untextured OBJ; the source model supplies the color regions:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli convert-repaired-transfer \
+PYTHONPATH=src python -m color3dconverter.cli convert-repaired-transfer \
   /path/to/source.glb \
   /path/to/repaired_target.obj \
   --out-dir /path/to/output \
@@ -69,8 +73,7 @@ python -m color3dconverter.cli convert-repaired-transfer \
 Run the end-to-end repaired production lane. This repairs the source geometry locally, smooths it, transfers printable paint regions, optionally writes a deterministic paint-region cleanup candidate, and only promotes that cleanup when it improves island/component counts while still passing validation:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli convert-repaired-production \
+PYTHONPATH=src python -m color3dconverter.cli convert-repaired-production \
   /path/to/source.glb \
   --out-dir /path/to/output \
   --max-colors 8 \
@@ -91,18 +94,16 @@ python -m color3dconverter.cli convert-model \
 Run a fixed-strategy ablation study across multiple real source variants:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli real-ablation \
-  --config /Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/examples/bold_cowgirl_ablation.json \
+PYTHONPATH=src python -m color3dconverter.cli real-ablation \
+  --config examples/your_ablation_config.json \
   --out-dir /tmp/bold_cowgirl_ablation
 ```
 
 Optional overrides let you keep the same config but swap the converter profile:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli real-ablation \
-  --config /Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/examples/bold_cowgirl_ablation.json \
+PYTHONPATH=src python -m color3dconverter.cli real-ablation \
+  --config examples/your_ablation_config.json \
   --strategy legacy_fast_face_labels \
   --regions 8 \
   --out-dir /tmp/bold_cowgirl_ablation
@@ -111,36 +112,32 @@ python -m color3dconverter.cli real-ablation \
 Run a bounded iterative search that keeps exploring candidates until the metric target is hit or the search stalls:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli iterative-search \
-  --config /Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/examples/cowgirl_original_iterative_search.json \
+PYTHONPATH=src python -m color3dconverter.cli iterative-search \
+  --config examples/your_iterative_search_config.json \
   --out-dir /tmp/cowgirl_original_iterative_search
 ```
 
 Run a cross-case search that only rewards candidates which stay strong across multiple real assets:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli cross-case-search \
-  --config /Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/examples/same_mesh_cross_case_search.json \
+PYTHONPATH=src python -m color3dconverter.cli cross-case-search \
+  --config examples/your_cross_case_search_config.json \
   --out-dir /tmp/same_mesh_cross_case_search
 ```
 
 Run the compact acceptance check for the current best same-mesh rule (`posterize_4` + `legacy_fast_face_labels`):
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli cross-case-search \
-  --config /Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/examples/same_mesh_posterize4_acceptance.json \
+PYTHONPATH=src python -m color3dconverter.cli cross-case-search \
+  --config examples/your_acceptance_config.json \
   --out-dir /tmp/same_mesh_posterize4_acceptance
 ```
 
 Train a repaired-geometry shading model from provider source/target pairs:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli train-shading-model \
-  --config /Users/philtullai/ai-agents/paint-to-print-3d/examples/eight_pair_shading_model_config.json \
+PYTHONPATH=src python -m color3dconverter.cli train-shading-model \
+  --config examples/eight_pair_shading_model_config.json \
   --out-model /tmp/eight_pair_direct_rgb_model_et.pkl \
   --model-kind et \
   --target-kind direct_rgb \
@@ -148,14 +145,13 @@ python -m color3dconverter.cli train-shading-model \
 ```
 
 Two larger repaired configs are also available:
-- duck-focused: [/Users/philtullai/ai-agents/paint-to-print-3d/examples/duck_ten_shading_model_config.json](/Users/philtullai/ai-agents/paint-to-print-3d/examples/duck_ten_shading_model_config.json)
-- broader figurine mix: [/Users/philtullai/ai-agents/paint-to-print-3d/examples/all_twelve_shading_model_config.json](/Users/philtullai/ai-agents/paint-to-print-3d/examples/all_twelve_shading_model_config.json)
+- duck-focused: [examples/duck_ten_shading_model_config.json](examples/duck_ten_shading_model_config.json)
+- broader figurine mix: [examples/all_twelve_shading_model_config.json](examples/all_twelve_shading_model_config.json)
 
 Bundle multiple repaired shading models into a weighted ensemble:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli bundle-shading-models \
+PYTHONPATH=src python -m color3dconverter.cli bundle-shading-models \
   --out-model /tmp/repaired_ensemble.pkl \
   --model-path /tmp/duck10_et.pkl \
   --model-path /tmp/all12_et.pkl \
@@ -165,20 +161,18 @@ python -m color3dconverter.cli bundle-shading-models \
 Apply a trained repaired shading model to a raw textured source plus repaired target geometry:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli convert-shading-model \
-  /Users/philtullai/Downloads/Screenshot_2026_04_02_at_85543_Captain_America_themed_rubber_duck_figurine_Prism_30_Multi_Image_da2242c4.glb \
-  /Users/philtullai/Downloads/Repaired_Captain_America_themed_rubber_duck_figuri_Mesh_Repair_04ef643e.obj \
+PYTHONPATH=src python -m color3dconverter.cli convert-shading-model \
+  /path/to/source.glb \
+  /path/to/repaired_target.obj \
   --model-path /tmp/eight_pair_direct_rgb_model_et.pkl \
-  --alignment-json /private/tmp/captain_provider_oracle_v1/alignment_summary.json \
+  --alignment-json /tmp/provider_oracle/alignment_summary.json \
   --out-obj /tmp/eight_pair_predicted.obj
 ```
 
 Convert a 3D AI Studio repaired model that already has baked texture data into Bambu-friendly region assets:
 
 ```bash
-PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
-python -m color3dconverter.cli convert-provider-bake \
+PYTHONPATH=src python -m color3dconverter.cli convert-provider-bake \
   /path/to/3dai_repaired_model.glb \
   --repair-result-json /path/to/3dai_repair_result.json \
   --out-dir /tmp/provider_bake_regions \
@@ -321,15 +315,15 @@ The `choose-lane` command is the safe report-only selector:
 - it preserves rejected-lane reasons for operator review
 - it does not mutate assets or publish anything
 
-## How DuckAgent Uses It
+## Integration Notes
 
-DuckAgent calls this package for:
+Downstream automation can call this package for:
 - single-image GLB conversion
 - repaired GLB conversion
 - repaired-geometry plus transferred-color conversion
 - local validation bundles for Bambu review
 
-DuckAgent still owns:
+The converter should stay focused on deterministic asset generation and reports. Calling systems should own:
 - run orchestration
 - operator UI
 - approval workflows
@@ -340,14 +334,16 @@ DuckAgent still owns:
 Install in editable mode:
 
 ```bash
-pip install -e .
+python -m pip install -e ".[dev]"
 ```
 
 Run tests:
 
 ```bash
-pytest
+PYTHONPATH=src python -m pytest
 ```
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, pull request expectations, and compatibility issue guidance.
 
 ## Roadmap
 
@@ -357,15 +353,17 @@ Near-term priorities:
 - more importer probes and example assets
 - README examples that demonstrate repaired-geometry transfer workflows
 - baseline-vs-cleanup candidate selection for noisy paint-region cases before adding provider-backed AI cleanup
-- keeping `AGENTS.md` and [AI Development Guide](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_DEVELOPMENT_GUIDE.md) current as this becomes a public AI-assisted repo
+- keeping `AGENTS.md` and [AI Development Guide](docs/AI_DEVELOPMENT_GUIDE.md) current as this becomes a public AI-assisted repo
 
 ## Repo Docs
 
-- [Examples](/Users/philtullai/ai-agents/paint-to-print-3d/examples/README.md)
-- [Implementation Plan](/Users/philtullai/ai-agents/paint-to-print-3d/docs/IMPLEMENTATION_PLAN.md)
-- [DuckAgent Integration Plan](/Users/philtullai/ai-agents/paint-to-print-3d/docs/DUCKAGENT_INTEGRATION_PLAN.md)
-- [Generalization Sample Results](/Users/philtullai/ai-agents/paint-to-print-3d/docs/GENERALIZATION_SAMPLE_RESULTS.md)
-- [AI Skin Cleanup Lane Plan](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_SKIN_CLEANUP_LANE_PLAN.md)
-- [AI Development Guide](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_DEVELOPMENT_GUIDE.md)
-- [Provenance](/Users/philtullai/ai-agents/paint-to-print-3d/docs/PROVENANCE.md)
-- [AGENTS](/Users/philtullai/ai-agents/paint-to-print-3d/AGENTS.md)
+- [Examples](examples/README.md)
+- [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
+- [Integration Plan](docs/DUCKAGENT_INTEGRATION_PLAN.md)
+- [Generalization Sample Results](docs/GENERALIZATION_SAMPLE_RESULTS.md)
+- [AI Skin Cleanup Lane Plan](docs/AI_SKIN_CLEANUP_LANE_PLAN.md)
+- [AI Development Guide](docs/AI_DEVELOPMENT_GUIDE.md)
+- [Provenance](docs/PROVENANCE.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [Agent Instructions](AGENTS.md)
