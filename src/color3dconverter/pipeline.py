@@ -1707,6 +1707,66 @@ def write_face_color_mesh_to_assets(
     return report
 
 
+def write_labeled_mesh_to_assets(
+    *,
+    positions: np.ndarray,
+    faces: np.ndarray,
+    face_labels: np.ndarray,
+    palette: np.ndarray,
+    source_path: str | Path,
+    out_dir: str | Path,
+    object_name: str | None = None,
+    strategy: str = "labeled_face_palette",
+    obj_filename: str = "region_materials.obj",
+    threemf_filename: str = "region_colorgroup.3mf",
+    preview_filename: str = "region_preview.png",
+    swatch_filename: str = "palette_swatches.png",
+    palette_csv_filename: str = "palette.csv",
+    report_filename: str = "conversion_report.json",
+    notes: list[str] | None = None,
+    extra_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write Bambu-friendly assets from an existing face-label palette."""
+    started = perf_counter()
+    output_dir = Path(out_dir).expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pos = np.asarray(positions, dtype=np.float32)
+    face_array = np.asarray(faces, dtype=np.int64)
+    label_array = np.asarray(face_labels, dtype=np.int32)
+    palette_array, label_array = compact_palette(np.asarray(palette, dtype=np.uint8), label_array)
+    loaded = LoadedTexturedMesh(
+        mesh=None,
+        positions=pos,
+        faces=face_array,
+        texcoords=np.zeros((len(pos), 2), dtype=np.float32),
+        texture_rgb=np.zeros((1, 1, 3), dtype=np.uint8),
+        source_path=Path(source_path).expanduser().resolve(),
+        texture_path=None,
+        source_format="labeled_face_mesh",
+    )
+    return _write_asset_bundle(
+        loaded=loaded,
+        face_labels=label_array,
+        palette=palette_array,
+        output_dir=output_dir,
+        object_name=object_name,
+        obj_filename=obj_filename,
+        threemf_filename=threemf_filename,
+        preview_filename=preview_filename,
+        swatch_filename=swatch_filename,
+        palette_csv_filename=palette_csv_filename,
+        report_filename=report_filename,
+        started=started,
+        strategy=strategy,
+        notes=notes
+        or [
+            "This conversion starts from an existing face-label palette and writes Bambu-friendly grouped OBJ/MTL assets.",
+            "It is intended for deterministic candidate rewrites such as paint-region cleanup, not for inventing new geometry or colors.",
+        ],
+        extra_report=extra_report,
+    )
+
+
 def _sample_face_texture_colors(loaded: LoadedTexturedMesh) -> np.ndarray:
     if len(loaded.faces) == 0:
         return np.zeros((0, 3), dtype=np.uint8)

@@ -46,11 +46,13 @@ The cleanup lane should never silently override the deterministic output. It sho
 
 Start with deterministic cleanup before adding a provider or ML dependency:
 
-1. Build `paint_region_cleanup` as a report-only candidate after normal transfer.
-2. Add connected-component absorption for tiny islands below a face-count threshold.
-3. Add protected-label rules so eyes, beak, light neutral details, red/white shield sections, and high-contrast emblems are not swallowed.
-4. Recompute palette/component stats and write a candidate report.
-5. Let the lane chooser compare baseline vs cleanup candidate.
+Status: implemented as a deterministic repaired-production candidate.
+
+1. `paint_region_cleanup` runs after normal repaired transfer when component or tiny-island counts exceed trigger thresholds.
+2. Connected-component absorption rewrites small unprotected islands into neighboring labels.
+3. Protected-label rules preserve beak-like regions, light neutral details, dark eye-like marks, and saturated emblem-like regions.
+4. The candidate writes fresh grouped OBJ/MTL, 3MF, palette, preview, labels, and a `paint_cleanup` report.
+5. The repaired-production lane promotes the candidate only when it improves component/tiny-island counts and still passes transfer plus Bambu validation.
 
 ## External Cleanup / AI Provider Direction
 
@@ -73,7 +75,20 @@ Required guardrail:
 
 ## Near-Term Work Items
 
-- Add a `paint-region-cleanup` candidate mode.
-- Add tests for tiny-island absorption with protected detail labels.
-- Run Captain, Polo, Spa, Lacrosse, and Dapper ducks through baseline vs cleanup.
+- Run Captain, Polo, Lacrosse, and Dapper ducks through baseline vs cleanup.
+- Tune the default cleanup threshold from real samples instead of only synthetic fixtures.
+- Add a visual comparison board for baseline vs cleanup candidates.
 - Promote cleanup to default only after multiple real samples improve without manual correction.
+
+## First Real Smoke Result
+
+Spa duck cleanup smoke:
+
+- Baseline components: `2,615`
+- Cleanup candidate components: `270`
+- Baseline tiny islands: `2,518`
+- Cleanup candidate tiny islands: `237`
+- Decision: candidate written, not promoted
+- Reason: tiny islands still exceed the auto threshold of `96`
+
+This is the intended fail-closed behavior. The lane is useful, but it needs another cleanup pass or stronger texture/skin simplification before Spa-like samples should become automatic.

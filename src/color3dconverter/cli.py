@@ -68,6 +68,9 @@ def main() -> None:
     repaired_production_parser.add_argument("--transfer-strategy", choices=["geometry_transfer_legacy_face_regions_graph", "geometry_transfer_blender_like_bake_face_regions", "geometry_transfer_blender_like_bake_duck_intent", "geometry_transfer_legacy_corner_face_regions"], default="geometry_transfer_blender_like_bake_duck_intent")
     repaired_production_parser.add_argument("--repair-smoothing-iterations", type=int)
     repaired_production_parser.add_argument("--repair-voxel-divisions", type=int, default=128)
+    repaired_production_parser.add_argument("--no-paint-cleanup", action="store_true")
+    repaired_production_parser.add_argument("--paint-cleanup-min-component-size", type=int)
+    repaired_production_parser.add_argument("--paint-cleanup-passes", type=int, default=4)
     repaired_production_parser.add_argument("--no-fail-closed", action="store_true")
 
     lane_chooser_parser = subparsers.add_parser("choose-lane", help="Choose the best report-ready conversion lane without mutating assets.")
@@ -217,6 +220,9 @@ def main() -> None:
             transfer_strategy=args.transfer_strategy,
             repair_smoothing_iterations=args.repair_smoothing_iterations,
             repair_voxel_divisions=args.repair_voxel_divisions,
+            paint_cleanup=not bool(args.no_paint_cleanup),
+            paint_cleanup_min_component_size=args.paint_cleanup_min_component_size,
+            paint_cleanup_passes=args.paint_cleanup_passes,
             fail_closed=not bool(args.no_fail_closed),
         )
         print(json.dumps(report, indent=2))

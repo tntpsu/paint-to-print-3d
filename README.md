@@ -66,6 +66,19 @@ python -m color3dconverter.cli convert-repaired-transfer \
   --strategy legacy_fast_face_labels
 ```
 
+Run the end-to-end repaired production lane. This repairs the source geometry locally, smooths it, transfers printable paint regions, optionally writes a deterministic paint-region cleanup candidate, and only promotes that cleanup when it improves island/component counts while still passing validation:
+
+```bash
+PYTHONPATH=/Users/philtullai/ai-agents/paint-to-print-3d/src \
+python -m color3dconverter.cli convert-repaired-production \
+  /path/to/source.glb \
+  --out-dir /path/to/output \
+  --max-colors 8 \
+  --repair-backend voxel_marching_cubes \
+  --repair-voxel-divisions 128 \
+  --repair-smoothing-iterations 18
+```
+
 Convert a packaged OBJ ZIP:
 
 ```bash
@@ -217,6 +230,7 @@ Repaired production bundles also include:
 - `selected/paint_intent_report.json`
 - `selected/paint_intent_report.md`
 - `_repair_geometry/repaired_geometry.obj`
+- `_cleanup_candidates/paint_region_cleanup/` when cleanup is triggered by noisy component/tiny-island counts
 
 Lane-choice bundles also include:
 - `lane_choice_report.json`
@@ -343,6 +357,7 @@ Near-term priorities:
 - more importer probes and example assets
 - README examples that demonstrate repaired-geometry transfer workflows
 - baseline-vs-cleanup candidate selection for noisy paint-region cases before adding provider-backed AI cleanup
+- keeping `AGENTS.md` and [AI Development Guide](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_DEVELOPMENT_GUIDE.md) current as this becomes a public AI-assisted repo
 
 ## Repo Docs
 
@@ -351,5 +366,6 @@ Near-term priorities:
 - [DuckAgent Integration Plan](/Users/philtullai/ai-agents/paint-to-print-3d/docs/DUCKAGENT_INTEGRATION_PLAN.md)
 - [Generalization Sample Results](/Users/philtullai/ai-agents/paint-to-print-3d/docs/GENERALIZATION_SAMPLE_RESULTS.md)
 - [AI Skin Cleanup Lane Plan](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_SKIN_CLEANUP_LANE_PLAN.md)
+- [AI Development Guide](/Users/philtullai/ai-agents/paint-to-print-3d/docs/AI_DEVELOPMENT_GUIDE.md)
 - [Provenance](/Users/philtullai/ai-agents/paint-to-print-3d/docs/PROVENANCE.md)
 - [AGENTS](/Users/philtullai/ai-agents/paint-to-print-3d/AGENTS.md)

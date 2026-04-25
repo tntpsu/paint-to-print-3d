@@ -6,6 +6,7 @@ from .export_obj import write_bambu_compatible_grouped_obj_with_mtl, write_group
 from .fixtures import BenchmarkFixture, list_benchmark_fixtures, load_benchmark_fixture
 from .lane_chooser import choose_conversion_lane, normalize_lane_candidate
 from .model_io import LoadedTexturedMesh, load_geometry_model, load_textured_glb, load_textured_model, load_textured_obj, load_textured_objzip
+from .paint_cleanup import cleanup_paint_region_labels, paint_component_metrics
 from .pipeline import (
     assess_repaired_transfer_candidate,
     assess_provider_bake_candidate,
@@ -17,6 +18,7 @@ from .pipeline import (
     convert_repaired_color_transfer_to_assets,
     convert_textured_obj_to_region_assets,
     write_face_color_mesh_to_assets,
+    write_labeled_mesh_to_assets,
 )
 from .production import run_production_conversion, run_repaired_production_conversion
 from .provider_oracle import run_provider_oracle_experiments
@@ -45,7 +47,9 @@ __all__ = [
     "convert_repaired_color_transfer_to_assets",
     "convert_with_shading_model",
     "convert_textured_obj_to_region_assets",
+    "cleanup_paint_region_labels",
     "normalize_lane_candidate",
+    "paint_component_metrics",
     "run_production_conversion",
     "run_repaired_production_conversion",
     "list_benchmark_fixtures",
@@ -72,6 +76,7 @@ __all__ = [
     "write_bambu_compatible_grouped_obj_with_mtl",
     "write_colorgroup_3mf",
     "write_face_color_mesh_to_assets",
+    "write_labeled_mesh_to_assets",
     "write_grouped_obj_with_mtl",
     "write_source_export_comparison",
 ]

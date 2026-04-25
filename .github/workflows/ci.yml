@@ -16,5 +16,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      - name: Syntax check
+        run: PYTHONPATH=src python -m compileall -q src
       - name: Test
-        run: pytest -q
+        run: PYTHONPATH=src pytest -q

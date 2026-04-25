@@ -124,6 +124,8 @@ def test_run_repaired_production_conversion_writes_validated_assets(tmp_path: Pa
     assert report["transfer_strategy"] == "geometry_transfer_blender_like_bake_duck_intent"
     assert report["repair_smoothing_iterations"] == 0
     assert report["repair_voxel_divisions"] is None
+    assert report["paint_cleanup_enabled"] is True
+    assert report["paint_cleanup"]["status"] in {"skipped", "candidate_written", "promoted"}
     assert Path(report["acceptance_summary_path"]).exists()
     assert Path(report["production_report_path"]).exists()
     assert Path(report["paint_intent_report_path"]).exists()
@@ -137,3 +139,4 @@ def test_run_repaired_production_conversion_writes_validated_assets(tmp_path: Pa
     paint_intent = json.loads(Path(report["paint_intent_report_path"]).read_text(encoding="utf-8"))
     assert paint_intent["summary"]["palette_size"] == report["palette_size"]
     assert "bottom_flatness" in paint_intent["geometry"]
+    assert paint_intent["paint_cleanup"]["status"] == report["paint_cleanup"]["status"]
