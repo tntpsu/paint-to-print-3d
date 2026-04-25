@@ -1,0 +1,75 @@
+{
+  "status": "ok",
+  "source_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/63f9c2fa-60cf-4d8f-8878-694ace1f4232.obj",
+  "source_format": "obj",
+  "source_texture_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/Base Color.png",
+  "strategy": "region_first",
+  "region_count": 5,
+  "palette_size": 5,
+  "vertex_count": 11258,
+  "face_count": 16734,
+  "obj_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/region_materials.obj",
+  "mtl_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/region_materials.mtl",
+  "obj_export_style": "bambu_simple",
+  "threemf_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/region_colorgroup.3mf",
+  "preview_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/region_preview.png",
+  "palette_swatch_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/palette_swatches.png",
+  "palette_csv_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_retest/palette.csv",
+  "palette": [
+    {
+      "palette_index": 1,
+      "hex": "#000000",
+      "rgb": [
+        0,
+        0,
+        0
+      ],
+      "face_count": 6364
+    },
+    {
+      "palette_index": 2,
+      "hex": "#CC983A",
+      "rgb": [
+        204,
+        152,
+        58
+      ],
+      "face_count": 4513
+    },
+    {
+      "palette_index": 0,
+      "hex": "#7E7423",
+      "rgb": [
+        126,
+        116,
+        35
+      ],
+      "face_count": 2484
+    },
+    {
+      "palette_index": 4,
+      "hex": "#92330C",
+      "rgb": [
+        146,
+        51,
+        12
+      ],
+      "face_count": 2104
+    },
+    {
+      "palette_index": 3,
+      "hex": "#C5B5A1",
+      "rgb": [
+        197,
+        181,
+        161
+      ],
+      "face_count": 1269
+    }
+  ],
+  "duration_seconds": 3.626,
+  "notes": [
+    "This conversion builds printable color regions from texture space before assigning colors to faces.",
+    "3MF export uses standards-based colorgroup face colors."
+  ]
+}

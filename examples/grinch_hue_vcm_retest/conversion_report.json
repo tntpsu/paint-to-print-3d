@@ -1,0 +1,104 @@
+{
+  "status": "ok",
+  "source_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/63f9c2fa-60cf-4d8f-8878-694ace1f4232.obj",
+  "source_format": "obj",
+  "source_texture_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/Base Color.png",
+  "strategy": "hue_vcm_cleanup_face_labels",
+  "region_count": 5,
+  "palette_size": 5,
+  "vertex_count": 11258,
+  "face_count": 16734,
+  "obj_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_materials.obj",
+  "vertex_color_obj_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_materials_vertex_color.obj",
+  "mtl_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_materials.mtl",
+  "obj_export_style": "bambu_simple",
+  "threemf_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_colorgroup.3mf",
+  "preview_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_preview.png",
+  "palette_swatch_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/palette_swatches.png",
+  "palette_csv_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/palette.csv",
+  "face_palette_indices_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_materials_face_palette_indices.npy",
+  "palette_npy_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_hue_vcm_retest/region_materials_palette.npy",
+  "palette": [
+    {
+      "palette_index": 3,
+      "hex": "#FFCF20",
+      "rgb": [
+        255,
+        207,
+        32
+      ],
+      "face_count": 6248
+    },
+    {
+      "palette_index": 2,
+      "hex": "#D11603",
+      "rgb": [
+        209,
+        22,
+        3
+      ],
+      "face_count": 4911
+    },
+    {
+      "palette_index": 1,
+      "hex": "#ABA312",
+      "rgb": [
+        171,
+        163,
+        18
+      ],
+      "face_count": 2615
+    },
+    {
+      "palette_index": 4,
+      "hex": "#FFFAE1",
+      "rgb": [
+        255,
+        250,
+        225
+      ],
+      "face_count": 2062
+    },
+    {
+      "palette_index": 0,
+      "hex": "#555209",
+      "rgb": [
+        85,
+        82,
+        9
+      ],
+      "face_count": 898
+    }
+  ],
+  "largest_palette_face_share": 0.3734,
+  "duration_seconds": 1.213,
+  "notes": [
+    "This no-repair conversion ports addon-style cleanup into pure Python: HUE levels, brightness/contrast, hue-saturation, overlay/screen blending, and Vertex Color Master posterize/remap cleanup.",
+    "It keeps seam-aware corner-color baking, then consolidates palette islands on the original mesh instead of transferring across repaired topology.",
+    "3MF export still uses standards-based colorgroup face colors."
+  ],
+  "component_count": 247,
+  "tiny_island_count": 147,
+  "largest_component_share": 0.0646,
+  "hue_vcm_cleanup_path": true,
+  "corner_bake_metadata": {
+    "sampling_mode": "bilinear",
+    "corner_count": 50202,
+    "face_count": 16734,
+    "padded_mask_coverage": 0.6416771411895752,
+    "pad_pixels": 5,
+    "valid_uv_pixels": 2304877,
+    "padded_uv_pixels": 2691389
+  },
+  "cleanup_profile": {
+    "levels_black": 0.06,
+    "levels_white": 0.94,
+    "gamma": 0.92,
+    "brightness": 0.018,
+    "contrast": 0.22,
+    "saturation": 1.16,
+    "value": 1.04,
+    "posterize_levels": 6
+  },
+  "quantized_color_count": 5
+}

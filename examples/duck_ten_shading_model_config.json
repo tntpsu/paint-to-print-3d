@@ -1,0 +1,74 @@
+{
+  "pairs": [
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_04_02_at_85543_Captain_America_themed_rubber_duck_figurine_Prism_30_Multi_Image_da2242c4.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Captain_America_themed_rubber_duck_figuri_Mesh_Repair_04ef643e.obj",
+      "alignment_json": "/private/tmp/captain_provider_oracle_v1/alignment_summary.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_04_02_at_11295_Stylish_rubber_duck_with_afro_hairstyle_Prism_30_Multi_Image_facd49b2.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_04_02_at_11295_Stylish_ru_Mesh_Repair_7c185050.obj",
+      "alignment_json": "/private/tmp/afro_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_03_30_at_90521_Rubber_duck_in_conductors_uniform_and_hat_Prism_30_Multi_Image_b54002af.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_03_30_at_90521_Rubber_duc_Mesh_Repair_0c10b132.obj",
+      "alignment_json": "/private/tmp/conductor_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_03_29_at_55812_Yellow_rubber_duck_wearing_a_lacrosse_helmet_Prism_30_Multi_Image_58d5d6eb.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_03_29_at_55812_Yellow_rub_Mesh_Repair_2a910dc4.obj",
+      "alignment_json": "/private/tmp/lacrosse_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/duck_polo_Rubber_duck_wearing_a_blue_polo_shirt_Prism_30_a9f4249b.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_duck_polo_Rubber_duck_wearing_a_blue_polo_Mesh_Repair_c0f88b5c.obj",
+      "alignment_json": "/private/tmp/polo_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/spa_duck_front_Rubber_duck_wearing_towel_cucumbers_on_eyes_Prism_31_Multi_Image_9e6528d7.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_spa_duck_front_Rubber_duck_wearing_towel_Mesh_Repair_fa6ad0b5.obj",
+      "alignment_json": "/private/tmp/spa_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/couplesduck_Two_cute_yellow_rubber_ducks_one_bowtie_Prism_30_6a0fc93e.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_couplesduck_Two_cute_yellow_rubber_ducks_Mesh_Repair_2a0a2964.obj",
+      "alignment_json": "/private/tmp/couples_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/canoe_duck_Rubber_duck_in_a_wooden_boat_Prism_30_804bdb7c.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_canoe_duck_Rubber_duck_in_a_wooden_boat_P_Mesh_Repair_706a09e6.obj",
+      "alignment_json": "/private/tmp/canoe_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_03_07_at_12504_Dapper_duck_wearing_a_suit_and_hat_Prism_30_Multi_Image_01a2de9f.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_03_07_at_12504_Dapper_duc_Mesh_Repair_63ec8ac0.obj",
+      "alignment_json": "/private/tmp/dapper_duck_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/fiesta_front_Rubber_duck_with_gray_hair_and_shirt_Prism_30_Multi_Image_7e07ed0e.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_fiesta_front_Rubber_duck_with_gray_hair_a_Mesh_Repair_04408bd2.obj",
+      "alignment_json": "/private/tmp/fiesta_duck_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    }
+  ]
+}

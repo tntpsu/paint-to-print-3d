@@ -1,0 +1,25 @@
+{
+  "pairs": [
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_04_02_at_85543_Captain_America_themed_rubber_duck_figurine_Prism_30_Multi_Image_da2242c4.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Captain_America_themed_rubber_duck_figuri_Mesh_Repair_04ef643e.obj",
+      "alignment_json": "/private/tmp/captain_provider_oracle_v1/alignment_summary.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_04_02_at_11295_Stylish_rubber_duck_with_afro_hairstyle_Prism_30_Multi_Image_facd49b2.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_04_02_at_11295_Stylish_ru_Mesh_Repair_7c185050.obj",
+      "alignment_json": "/private/tmp/afro_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    },
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_03_30_at_90521_Rubber_duck_in_conductors_uniform_and_hat_Prism_30_Multi_Image_b54002af.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Screenshot_2026_03_30_at_90521_Rubber_duc_Mesh_Repair_0c10b132.obj",
+      "alignment_json": "/private/tmp/conductor_repaired_alignment.json",
+      "sample_size": 10000,
+      "seed": 42
+    }
+  ]
+}

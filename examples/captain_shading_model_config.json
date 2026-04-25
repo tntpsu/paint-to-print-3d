@@ -1,0 +1,11 @@
+{
+  "pairs": [
+    {
+      "source_path": "/Users/philtullai/Downloads/Screenshot_2026_04_02_at_85543_Captain_America_themed_rubber_duck_figurine_Prism_30_Multi_Image_da2242c4.glb",
+      "target_obj_path": "/Users/philtullai/Downloads/Repaired_Captain_America_themed_rubber_duck_figuri_Mesh_Repair_04ef643e.obj",
+      "alignment_json": "/private/tmp/captain_provider_oracle_v1/alignment_summary.json",
+      "sample_size": 5000,
+      "seed": 42
+    }
+  ]
+}

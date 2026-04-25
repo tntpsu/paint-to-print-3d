@@ -1,0 +1,79 @@
+{
+  "status": "ok",
+  "source_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/63f9c2fa-60cf-4d8f-8878-694ace1f4232.obj",
+  "source_format": "obj",
+  "source_texture_path": "/Users/philtullai/ai-agents/3dcolor/examples/grinch/Base Color.png",
+  "strategy": "legacy_fast_face_labels",
+  "region_count": 5,
+  "palette_size": 5,
+  "vertex_count": 11258,
+  "face_count": 16734,
+  "obj_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/region_materials.obj",
+  "mtl_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/region_materials.mtl",
+  "obj_export_style": "bambu_simple",
+  "threemf_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/region_colorgroup.3mf",
+  "preview_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/region_preview.png",
+  "palette_swatch_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/palette_swatches.png",
+  "palette_csv_path": "/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest/palette.csv",
+  "palette": [
+    {
+      "palette_index": 0,
+      "hex": "#CC983A",
+      "rgb": [
+        204,
+        152,
+        58
+      ],
+      "face_count": 6349
+    },
+    {
+      "palette_index": 1,
+      "hex": "#92330C",
+      "rgb": [
+        146,
+        51,
+        12
+      ],
+      "face_count": 4412
+    },
+    {
+      "palette_index": 3,
+      "hex": "#7E7423",
+      "rgb": [
+        126,
+        116,
+        35
+      ],
+      "face_count": 3615
+    },
+    {
+      "palette_index": 2,
+      "hex": "#C5B5A1",
+      "rgb": [
+        197,
+        181,
+        161
+      ],
+      "face_count": 2279
+    },
+    {
+      "palette_index": 4,
+      "hex": "#000000",
+      "rgb": [
+        0,
+        0,
+        0
+      ],
+      "face_count": 79
+    }
+  ],
+  "duration_seconds": 3.352,
+  "notes": [
+    "This conversion ports the old 3dcolor fast path: posterize texture, sample UV vertex colors, quantize, then assign face labels by vertex-majority.",
+    "It is intended as a regression-compatible Bambu OBJ path based on the historically working Grinch outputs.",
+    "3MF export still uses standards-based colorgroup face colors."
+  ],
+  "image_palette": 5,
+  "quantized_color_count": 5,
+  "legacy_fast_path": true
+}
