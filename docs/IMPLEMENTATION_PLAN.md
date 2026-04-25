@@ -1,4 +1,4 @@
-# 3dcolorconverter Implementation Plan
+# paint-to-print-3d Implementation Plan
 
 ## Goal
 
@@ -81,8 +81,8 @@ Key steps:
 5. texture-region transfer for repaired-geometry workflows
 
 Focused execution plan for the current hard problem:
-- see [REGION_TRANSFER_SUCCESS_PLAN.md](/Users/philtullai/ai-agents/3dcolorconverter/docs/REGION_TRANSFER_SUCCESS_PLAN.md)
-- see [COLOR_CONVERSION_FINISH_PLAN.md](/Users/philtullai/ai-agents/3dcolorconverter/docs/COLOR_CONVERSION_FINISH_PLAN.md)
+- see [REGION_TRANSFER_SUCCESS_PLAN.md](/Users/philtullai/ai-agents/paint-to-print-3d/docs/REGION_TRANSFER_SUCCESS_PLAN.md)
+- see [COLOR_CONVERSION_FINISH_PLAN.md](/Users/philtullai/ai-agents/paint-to-print-3d/docs/COLOR_CONVERSION_FINISH_PLAN.md)
 
 ## Phase 4: Broader Input Support
 
@@ -118,7 +118,7 @@ Planned integration point:
 - DuckAgent local Bambu/export lane should call this repo instead of carrying the whole conversion stack inline
 
 Detailed integration plan:
-- see [DUCKAGENT_INTEGRATION_PLAN.md](/Users/philtullai/ai-agents/3dcolorconverter/docs/DUCKAGENT_INTEGRATION_PLAN.md)
+- see [DUCKAGENT_INTEGRATION_PLAN.md](/Users/philtullai/ai-agents/paint-to-print-3d/docs/DUCKAGENT_INTEGRATION_PLAN.md)
 
 ## Near-Term Build Order
 
@@ -147,5 +147,5 @@ Based on the current evidence:
 - make repaired-geometry success depend on region transfer, boundary cleanup, and target-geometry island pruning
 
 The detailed success criteria and build order for that lane are in:
-- [REGION_TRANSFER_SUCCESS_PLAN.md](/Users/philtullai/ai-agents/3dcolorconverter/docs/REGION_TRANSFER_SUCCESS_PLAN.md)
-- [COLOR_CONVERSION_FINISH_PLAN.md](/Users/philtullai/ai-agents/3dcolorconverter/docs/COLOR_CONVERSION_FINISH_PLAN.md)
+- [REGION_TRANSFER_SUCCESS_PLAN.md](/Users/philtullai/ai-agents/paint-to-print-3d/docs/REGION_TRANSFER_SUCCESS_PLAN.md)
+- [COLOR_CONVERSION_FINISH_PLAN.md](/Users/philtullai/ai-agents/paint-to-print-3d/docs/COLOR_CONVERSION_FINISH_PLAN.md)

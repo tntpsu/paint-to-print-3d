@@ -22,7 +22,7 @@ We have already eliminated several earlier unknowns.
 - Not primarily geometry simplification.
   - unsimplified repaired geometry only improved the cowgirl result slightly.
 - Not primarily “lack of a reusable package.”
-  - `3dcolorconverter` now owns the real conversion path and DuckAgent is calling it.
+  - `paint-to-print-3d` now owns the real conversion path and DuckAgent is calling it.
 
 ### What is actually failing now
 
@@ -43,7 +43,7 @@ More concretely:
 
 2. The old export shape matters.
 - simple `mat_*` grouped OBJ/MTL behaves well in Bambu
-- this shape has already been pulled into `3dcolorconverter`
+- this shape has already been pulled into `paint-to-print-3d`
 
 3. Cowgirl failures are transfer failures more than extraction failures.
 - single-source legacy looks cleaner than repaired transfer
@@ -130,7 +130,7 @@ Deliverables:
 Files:
 
 - `/Users/philtullai/ai-agents/3dcolor/examples/grinch/duck_conversion`
-- `/Users/philtullai/ai-agents/3dcolorconverter/examples/grinch_legacy_retest`
+- `/Users/philtullai/ai-agents/paint-to-print-3d/examples/grinch_legacy_retest`
 - `/Users/philtullai/ai-agents/duckAgent/creative_agent/runtime/runs/outputs/trend_concept_preview_20260408_211824`
 
 Exit condition:
@@ -152,8 +152,8 @@ Implement:
 
 Likely files:
 
-- `/Users/philtullai/ai-agents/3dcolorconverter/src/color3dconverter/pipeline.py`
-- `/Users/philtullai/ai-agents/3dcolorconverter/src/color3dconverter/face_regions.py`
+- `/Users/philtullai/ai-agents/paint-to-print-3d/src/color3dconverter/pipeline.py`
+- `/Users/philtullai/ai-agents/paint-to-print-3d/src/color3dconverter/face_regions.py`
 
 New contract idea:
 
@@ -199,8 +199,8 @@ Possible algorithm:
 
 Likely files:
 
-- `/Users/philtullai/ai-agents/3dcolorconverter/src/color3dconverter/face_regions.py`
-- `/Users/philtullai/ai-agents/3dcolorconverter/src/color3dconverter/pipeline.py`
+- `/Users/philtullai/ai-agents/paint-to-print-3d/src/color3dconverter/face_regions.py`
+- `/Users/philtullai/ai-agents/paint-to-print-3d/src/color3dconverter/pipeline.py`
 
 New strategy name:
 
@@ -331,7 +331,7 @@ We are winning when:
 
 Current implementation status as of 2026-04-24:
 
-- `geometry_transfer_legacy_face_regions` exists in `3dcolorconverter`
+- `geometry_transfer_legacy_face_regions` exists in `paint-to-print-3d`
 - `convert-repaired-transfer` exists as a direct CLI/API bridge from textured source model plus repaired target geometry to grouped OBJ/MTL and colorgroup 3MF
 - untextured repaired target OBJ input is supported by `load_geometry_model`
 - reusable legacy source-region extraction exists via `SourceFaceRegionModel`
@@ -339,12 +339,18 @@ Current implementation status as of 2026-04-24:
 - bold cowgirl repaired-transfer bridge run completed successfully on the 1.17M-face repaired mesh, improving from about 145 seconds to about 90 seconds after the KD-tree change
 - full local test suite passes with the bridge in place
 
+Research update:
+
+- 3D AI Studio's documented repair path can bake textures onto repaired/remeshed output, and its separate bake-texture API transfers source textures onto retopologized geometry with UV generation and ray casting.
+- This means provider-baked output should become a first-class oracle lane before local repaired transfer is promoted.
+- The rollout plan for that lane is captured in `docs/REPAIRED_TRANSFER_RESEARCH_AND_ROLLOUT_PLAN.md`.
+
 The next implementation should be:
 
-1. run `convert-repaired-transfer` on bold cowgirl and compare against current repaired transfer and single-source legacy
-2. add a face-count or decimation gate before DuckAgent runs repaired transfer automatically
-3. if it wins visually, make DuckAgent prefer the repaired transfer lane
-4. if it does not win, keep the bridge as an evaluation lane and build the lane chooser around same-mesh fallback
+1. attach a repaired-transfer quality assessment to every `convert-repaired-transfer` report
+2. inspect existing 3D AI Studio repair/bake artifacts and add a provider-bake oracle lane
+3. run same-mesh, provider-bake, and local repaired-transfer lanes side by side on bold cowgirl
+4. make DuckAgent prefer the repaired transfer lane only if it beats the provider-bake and same-mesh lanes under quality gates
 5. extend `SourceFaceRegionModel` into corner-bake and blender-like source setup if those strategies become the winning candidates
 
 That is the most direct path to success from the evidence we have today.

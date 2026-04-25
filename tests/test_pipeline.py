@@ -10,11 +10,16 @@ import numpy as np
 
 from color3dconverter.model_io import LoadedTexturedMesh
 from color3dconverter.pipeline import (
+    _apply_duck_color_intent_rules,
+    assess_provider_bake_candidate,
+    assess_repaired_transfer_candidate,
     convert_color_transferred_mesh_to_assets,
     convert_loaded_mesh_to_color_assets,
     convert_model_to_color_assets,
+    convert_provider_baked_model_to_assets,
     convert_repaired_color_transfer_to_assets,
     convert_textured_obj_to_region_assets,
+    write_face_color_mesh_to_assets,
 )
 from color3dconverter.validation import write_bambu_validation_bundle
 
@@ -255,6 +260,49 @@ def test_convert_loaded_mesh_to_color_assets_blender_like_bake_strategy(tmp_path
     assert report["strategy"] == "blender_like_bake_face_labels"
     assert report["blender_like_bake"] is True
     assert report["bake_metadata"]["sampling_mode"] == "bilinear"
+
+
+def test_write_face_color_mesh_runs_iterative_cleanup(tmp_path: Path) -> None:
+    grid_size = 9
+    positions: list[list[float]] = []
+    for y in range(grid_size + 1):
+        for x in range(grid_size + 1):
+            positions.append([float(x), float(y), 0.0])
+
+    faces: list[list[int]] = []
+    blue_face_indexes: set[int] = set()
+    for y in range(grid_size):
+        for x in range(grid_size):
+            v0 = y * (grid_size + 1) + x
+            v1 = v0 + 1
+            v2 = v0 + (grid_size + 1)
+            v3 = v2 + 1
+            first_face_index = len(faces)
+            faces.append([v0, v1, v3])
+            faces.append([v0, v3, v2])
+            if (x + y) % 4 == 0:
+                blue_face_indexes.add(first_face_index)
+
+    face_colors = np.full((len(faces), 3), [220, 46, 32], dtype=np.uint8)
+    for face_index in blue_face_indexes:
+        face_colors[face_index] = [36, 80, 224]
+
+    report = write_face_color_mesh_to_assets(
+        positions=np.asarray(positions, dtype=np.float32),
+        faces=np.asarray(faces, dtype=np.int64),
+        face_colors=face_colors,
+        source_path=tmp_path / "source.glb",
+        out_dir=tmp_path / "printable",
+        max_colors=2,
+        min_component_size=4,
+        smooth_iterations=1,
+        cleanup_passes=4,
+    )
+
+    assert Path(report["obj_path"]).exists()
+    assert report["cleanup_passes"] == 4
+    assert report["component_count"] <= 3
+    assert report["tiny_island_count"] == 0
     assert Path(report["obj_path"]).exists()
 
 
@@ -573,10 +621,14 @@ def test_convert_repaired_color_transfer_accepts_untextured_target_obj(tmp_path:
     target_obj.write_text(
         "\n".join(
             [
-                "v 0 0 0.05",
-                "v 1 0 0.05",
-                "v 0 1 0.05",
-                "f 1 2 3",
+                "v 0 0 0",
+                "v 1 0 0",
+                "v 0 1 0",
+                "v 0 0 1",
+                "f 1 3 2",
+                "f 1 2 4",
+                "f 2 3 4",
+                "f 3 1 4",
             ]
         )
         + "\n",
@@ -599,6 +651,166 @@ def test_convert_repaired_color_transfer_accepts_untextured_target_obj(tmp_path:
     assert Path(report["threemf_path"]).exists()
     saved = json.loads(Path(report["report_path"]).read_text(encoding="utf-8"))
     assert saved["conversion_lane"] == "repaired_geometry_region_transfer"
+    assert saved["target_geometry_stats"]["is_watertight"] is True
+    assert saved["target_geometry_stats"]["body_count"] == 1
+    assert saved["repaired_transfer_assessment"]["ready_for_auto"] is True
+
+
+def test_assess_repaired_transfer_candidate_flags_noisy_large_mesh() -> None:
+    assessment = assess_repaired_transfer_candidate(
+        {
+            "face_count": 1_170_124,
+            "palette_size": 12,
+            "component_count": 1_357,
+            "tiny_island_count": 850,
+            "largest_component_share": 0.031,
+        }
+    )
+
+    assert assessment["status"] == "needs_review"
+    assert assessment["ready_for_auto"] is False
+    assert len(assessment["reasons"]) >= 4
+    assert "Do not auto-prefer" in assessment["recommendation"]
+
+
+def test_assess_repaired_transfer_candidate_accepts_coherent_export() -> None:
+    assessment = assess_repaired_transfer_candidate(
+        {
+            "face_count": 24_000,
+            "palette_size": 6,
+            "component_count": 18,
+            "tiny_island_count": 4,
+            "largest_component_share": 0.42,
+        }
+    )
+
+    assert assessment["status"] == "ready_for_auto"
+    assert assessment["ready_for_auto"] is True
+    assert assessment["reasons"] == []
+
+
+def test_convert_provider_baked_model_to_assets_records_provider_metadata(tmp_path: Path) -> None:
+    obj_path = tmp_path / "provider_baked.obj"
+    mtl_path = tmp_path / "provider_baked.mtl"
+    texture_path = tmp_path / "provider_texture.png"
+    repair_result_path = tmp_path / "3dai_repair_result.json"
+
+    texture = Image.new("RGB", (2, 2), (255, 220, 0))
+    texture.putpixel((1, 1), (180, 45, 30))
+    texture.save(texture_path)
+    mtl_path.write_text("newmtl Material\nmap_Kd provider_texture.png\n", encoding="utf-8")
+    obj_path.write_text(
+        "\n".join(
+            [
+                "mtllib provider_baked.mtl",
+                "v 0 0 0",
+                "v 1 0 0",
+                "v 0 1 0",
+                "vt 0 1",
+                "vt 1 1",
+                "vt 0 0",
+                "usemtl Material",
+                "f 1/1 2/2 3/3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    repair_result_path.write_text(
+        json.dumps(
+            {
+                "mode": "repair",
+                "status": "FINISHED",
+                "task_id": "task-provider-bake",
+                "results": [
+                    {
+                        "metadata": {
+                            "texture": {"has_texture": True, "resolution": "4096x4096"},
+                            "output": {"faces": 1, "watertight": True},
+                        }
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = convert_provider_baked_model_to_assets(
+        obj_path,
+        repair_result_path=repair_result_path,
+        out_dir=tmp_path / "provider_bake",
+        n_regions=2,
+        strategy="legacy_fast_face_labels",
+        object_name="Provider Bake Duck",
+    )
+
+    assert report["conversion_lane"] == "provider_baked_repaired_same_mesh"
+    assert report["provider_repair_status"] == "FINISHED"
+    assert report["provider_repair_texture"]["has_texture"] is True
+    assert report["provider_bake_texture_diagnostics"]["texture_role"] == "base_color_candidate"
+    assert report["provider_bake_assessment"]["ready_for_auto"] is True
+    saved = json.loads(Path(report["report_path"]).read_text(encoding="utf-8"))
+    assert saved["provider_repair_task_id"] == "task-provider-bake"
+
+
+def test_convert_provider_baked_model_to_assets_flags_blue_biased_bake(tmp_path: Path) -> None:
+    obj_path = tmp_path / "provider_baked.obj"
+    mtl_path = tmp_path / "provider_baked.mtl"
+    texture_path = tmp_path / "provider_texture.png"
+
+    texture = Image.new("RGB", (2, 2), (187, 187, 255))
+    texture.putpixel((1, 1), (35, 35, 55))
+    texture.save(texture_path)
+    mtl_path.write_text("newmtl Material\nmap_Kd provider_texture.png\n", encoding="utf-8")
+    obj_path.write_text(
+        "\n".join(
+            [
+                "mtllib provider_baked.mtl",
+                "v 0 0 0",
+                "v 1 0 0",
+                "v 0 1 0",
+                "vt 0 1",
+                "vt 1 1",
+                "vt 0 0",
+                "usemtl Material",
+                "f 1/1 2/2 3/3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = convert_provider_baked_model_to_assets(
+        obj_path,
+        out_dir=tmp_path / "provider_bake",
+        n_regions=2,
+        strategy="legacy_fast_face_labels",
+        object_name="Provider Bake Duck",
+    )
+
+    assert report["provider_bake_texture_diagnostics"]["texture_role"] == "suspected_normal_map"
+    assert report["provider_bake_assessment"]["ready_for_auto"] is False
+    assert any("normal map" in reason for reason in report["provider_bake_assessment"]["reasons"])
+
+
+def test_assess_provider_bake_candidate_flags_normal_map_texture() -> None:
+    assessment = assess_provider_bake_candidate(
+        {
+            "face_count": 1200,
+            "palette_size": 4,
+            "component_count": 8,
+            "tiny_island_count": 0,
+            "largest_component_share": 0.55,
+        },
+        {
+            "texture_role": "suspected_normal_map",
+            "mean_rgb": [150.0, 150.0, 204.0],
+        },
+    )
+
+    assert assessment["status"] == "needs_review"
+    assert assessment["ready_for_auto"] is False
+    assert any("normal map" in reason for reason in assessment["reasons"])
 
 
 def test_convert_color_transferred_mesh_to_assets_blender_like_bake_strategy(tmp_path: Path) -> None:
@@ -669,6 +881,130 @@ def test_convert_color_transferred_mesh_to_assets_blender_like_bake_strategy(tmp
     assert report["strategy"] == "geometry_transfer_blender_like_bake_face_regions"
     assert report["blender_like_bake"] is True
     assert report["region_transfer_mode"] == "connected_face_regions"
+
+    prefixed_report = convert_color_transferred_mesh_to_assets(
+        target_loaded=target,
+        color_source_loaded=color_source,
+        out_dir=tmp_path / "out_prefixed_bake_transfer",
+        max_colors=8,
+        strategy="geometry_transfer_blender_like_bake_face_regions",
+        object_name="Transferred Duck Baked Prefixed",
+    )
+
+    assert prefixed_report["strategy"] == "geometry_transfer_blender_like_bake_face_regions"
+    assert prefixed_report["blender_like_bake"] is True
+    assert prefixed_report["region_transfer_mode"] == "connected_face_regions"
+
+    intent_report = convert_color_transferred_mesh_to_assets(
+        target_loaded=target,
+        color_source_loaded=color_source,
+        out_dir=tmp_path / "out_duck_intent_transfer",
+        max_colors=8,
+        strategy="geometry_transfer_blender_like_bake_duck_intent",
+        object_name="Transferred Duck Intent",
+    )
+
+    assert intent_report["strategy"] == "geometry_transfer_blender_like_bake_duck_intent"
+    assert intent_report["blender_like_bake"] is True
+    assert intent_report["region_transfer_mode"] == "connected_face_regions"
+    assert intent_report["duck_color_intent"]["policy"] == "duck_color_intent_v1"
+
+
+def test_duck_color_intent_preserves_light_neutral_details() -> None:
+    def triangle_at(normalized_center: tuple[float, float, float]) -> np.ndarray:
+        center = np.asarray(normalized_center, dtype=np.float32) * 2.0
+        return np.array(
+            [
+                center + np.array([0.000, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.010, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.000, 0.010, 0.000], dtype=np.float32),
+            ],
+            dtype=np.float32,
+        )
+
+    centers = [
+        (-0.50, -0.50, -0.50),
+        (0.50, 0.50, 0.50),
+        (0.00, 0.00, 0.00),
+        (0.25, 0.27, 0.12),
+        (0.10, 0.20, 0.00),
+        (0.10, 0.00, 0.00),
+        (0.35, 0.16, 0.00),
+        (0.27, 0.27, -0.08),
+    ]
+    positions = np.vstack([triangle_at(center) for center in centers])
+    faces = np.array([[index * 3, index * 3 + 1, index * 3 + 2] for index in range(len(centers))], dtype=np.int64)
+    palette = np.array(
+        [
+            [0x32, 0x4F, 0x7C],  # blue body
+            [0xB9, 0xB6, 0xB8],  # intentional white/neutral detail
+            [0xC6, 0x82, 0x37],  # orange beak
+            [0x99, 0x85, 0x8A],  # gray cap artifact
+            [0x4C, 0x1B, 0x1C],  # red face speck artifact
+        ],
+        dtype=np.uint8,
+    )
+    labels = np.array([0, 0, 0, 1, 3, 2, 2, 4], dtype=np.int32)
+
+    cleaned, metadata = _apply_duck_color_intent_rules(
+        face_labels=labels,
+        palette=palette,
+        positions=positions,
+        faces=faces,
+    )
+
+    assert cleaned[3] == 1
+    assert cleaned[4] == 0
+    assert cleaned[5] == 0
+    assert cleaned[6] == 2
+    assert cleaned[7] == 0
+    assert metadata["reassigned_faces"] == 3
+
+
+def test_duck_color_intent_uses_dominant_body_color_not_always_blue() -> None:
+    def triangle_at(normalized_center: tuple[float, float, float]) -> np.ndarray:
+        center = np.asarray(normalized_center, dtype=np.float32) * 2.0
+        return np.array(
+            [
+                center + np.array([0.000, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.010, 0.000, 0.000], dtype=np.float32),
+                center + np.array([0.000, 0.010, 0.000], dtype=np.float32),
+            ],
+            dtype=np.float32,
+        )
+
+    centers = [
+        (-0.50, -0.50, -0.50),
+        (0.50, 0.50, 0.50),
+        (0.00, 0.00, 0.00),
+        (0.02, 0.10, 0.00),
+        (0.04, 0.12, 0.02),
+        (0.05, -0.02, 0.00),
+        (0.35, 0.16, 0.00),
+        (0.12, 0.01, 0.00),
+    ]
+    positions = np.vstack([triangle_at(center) for center in centers])
+    faces = np.array([[index * 3, index * 3 + 1, index * 3 + 2] for index in range(len(centers))], dtype=np.int64)
+    palette = np.array(
+        [
+            [0xEC, 0xC0, 0x3E],  # yellow duck body
+            [0x39, 0x6C, 0xC6],  # blue shirt
+            [0xE7, 0x5C, 0x22],  # orange beak
+        ],
+        dtype=np.uint8,
+    )
+    labels = np.array([0, 0, 0, 0, 0, 1, 2, 2], dtype=np.int32)
+
+    cleaned, metadata = _apply_duck_color_intent_rules(
+        face_labels=labels,
+        palette=palette,
+        positions=positions,
+        faces=faces,
+    )
+
+    assert metadata["body_label"] == 0
+    assert metadata["beak_label"] == 2
+    assert cleaned[6] == 2
 
 
 def test_convert_color_transferred_mesh_to_assets_semantic_parts_strategy(tmp_path: Path) -> None:

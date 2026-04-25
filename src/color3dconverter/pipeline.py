@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 from sklearn.cluster import KMeans
+import trimesh
 
 from .bake import (
     bake_texture_to_corner_colors,
@@ -288,20 +289,30 @@ def _legacy_transfer_vertex_labels_from_source(
 def _duck_color_signals(color: np.ndarray) -> dict[str, float]:
     rgb = np.asarray(color, dtype=np.float32) / 255.0
     r, g, b = float(rgb[0]), float(rgb[1]), float(rgb[2])
+    blue = max(0.0, b - 0.55 * r - 0.35 * g)
     warm = max(0.0, 0.55 * r + 0.35 * g - 0.45 * b)
     yellow = max(0.0, min(r, g) - 0.75 * b)
     red = max(0.0, r - 0.65 * g - 0.45 * b)
     orange = max(0.0, 0.75 * r + 0.35 * g - 1.1 * b - 0.2 * abs(r - g))
     brown = max(0.0, 0.45 * r + 0.25 * g - 0.25 * b - 0.35 * max(g - r, 0.0))
     tan = max(0.0, warm + 0.25 * min(r, g) - 0.4 * b)
+    neutral = max(0.0, 1.0 - (max(r, g, b) - min(r, g, b)) * 4.0)
     return {
+        "blue": blue,
         "warm": warm,
         "yellow": yellow,
         "red": red,
         "orange": orange,
         "brown": brown,
         "tan": tan,
+        "neutral": neutral,
     }
+
+
+def _relative_luminance(color: np.ndarray) -> float:
+    rgb = np.asarray(color, dtype=np.float32) / 255.0
+    r, g, b = float(rgb[0]), float(rgb[1]), float(rgb[2])
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 def _closeness(value: float, center: float, radius: float) -> float:
@@ -470,6 +481,202 @@ def _apply_duck_part_anchor_bias(
             labels[better] = candidate_label
             best_scores[better] = candidate_scores[better]
     return labels
+
+
+def _select_palette_label(
+    palette: np.ndarray,
+    face_labels: np.ndarray,
+    *,
+    signal_name: str,
+    min_signal: float = 0.0,
+) -> int | None:
+    if len(palette) == 0:
+        return None
+    counts = np.bincount(np.asarray(face_labels, dtype=np.int32), minlength=len(palette)).astype(np.float32)
+    best_label: int | None = None
+    best_score = float("-inf")
+    for label, color in enumerate(np.asarray(palette, dtype=np.uint8)):
+        signals = _duck_color_signals(color)
+        signal = float(signals.get(signal_name, 0.0))
+        if signal < float(min_signal):
+            continue
+        score = signal + 0.12 * float(counts[label]) / float(max(counts.max(), 1.0))
+        if score > best_score:
+            best_score = score
+            best_label = int(label)
+    return best_label
+
+
+def _select_zone_palette_label(
+    palette: np.ndarray,
+    face_labels: np.ndarray,
+    zone_mask: np.ndarray,
+    *,
+    signal_name: str | None = None,
+    min_signal: float = 0.0,
+    exclude_labels: set[int] | None = None,
+    prefer_dominance: float = 1.0,
+) -> int | None:
+    labels = np.asarray(face_labels, dtype=np.int32)
+    zone = np.asarray(zone_mask, dtype=bool)
+    if len(labels) == 0 or not np.any(zone):
+        return None
+    counts = np.bincount(labels[zone], minlength=len(palette)).astype(np.float32)
+    if not np.any(counts):
+        return None
+    excluded = exclude_labels or set()
+    best_label: int | None = None
+    best_score = float("-inf")
+    total = float(max(counts.sum(), 1.0))
+    for label, color in enumerate(np.asarray(palette, dtype=np.uint8)):
+        if label in excluded or counts[label] <= 0:
+            continue
+        signals = _duck_color_signals(color)
+        signal = float(signals.get(signal_name, 0.0)) if signal_name else 0.0
+        if signal_name and signal < float(min_signal):
+            continue
+        luminance = _relative_luminance(color)
+        neutral = float(signals["neutral"])
+        if neutral >= 0.30 and luminance >= 0.62:
+            continue
+        score = prefer_dominance * float(counts[label]) / total + signal
+        if best_score < score:
+            best_score = score
+            best_label = int(label)
+    return best_label
+
+
+def _apply_duck_color_intent_rules(
+    *,
+    face_labels: np.ndarray,
+    palette: np.ndarray,
+    positions: np.ndarray,
+    faces: np.ndarray,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Clean up common duck-print intent mistakes after region transfer.
+
+    The rules are conservative: large misplaced neutral or warm patches are
+    rewritten, while small emblems, stars, eyes, and shield details survive.
+    """
+    labels = np.asarray(face_labels, dtype=np.int32).copy()
+    palette_array = np.asarray(palette, dtype=np.uint8)
+    face_array = np.asarray(faces, dtype=np.int64)
+    if len(labels) == 0 or len(face_array) == 0 or len(palette_array) == 0:
+        return labels, {"policy": "duck_color_intent_v1", "applied": False, "reassigned_faces": 0}
+
+    centroids = normalize_positions(face_centroids(positions, face_array))
+    x = centroids[:, 0]
+    y = centroids[:, 1]
+    z = centroids[:, 2]
+    beak_zone = (x > 0.29) & (y > 0.04) & (y < 0.30) & (np.abs(z) < 0.22)
+    blue_body_zone = (
+        ((y > -0.32) & (np.abs(x) < 0.34) & (np.abs(z) < 0.38))
+        | ((y > -0.38) & (x < 0.12) & (np.abs(z) < 0.42))
+    )
+    head_cap_zone = (y > 0.08) & (x < 0.22) & (np.abs(z) < 0.36)
+    face_zone = (x > 0.06) & (y > -0.06) & (np.abs(z) < 0.28)
+    fallback_blue_label = _select_palette_label(palette_array, labels, signal_name="blue", min_signal=0.08)
+    beak_label = _select_zone_palette_label(
+        palette_array,
+        labels,
+        beak_zone,
+        signal_name="orange",
+        min_signal=0.08,
+        prefer_dominance=1.8,
+    )
+    if beak_label is None:
+        beak_label = _select_palette_label(palette_array, labels, signal_name="orange", min_signal=0.08)
+    body_label = _select_zone_palette_label(
+        palette_array,
+        labels,
+        blue_body_zone,
+        exclude_labels=set() if beak_label is None else {int(beak_label)},
+        prefer_dominance=1.0,
+    )
+    if body_label is None:
+        body_label = fallback_blue_label
+    if body_label is None:
+        return labels, {"policy": "duck_color_intent_v1", "applied": False, "reason": "no body label", "reassigned_faces": 0}
+
+    component_ids = build_connected_face_components(labels, face_array)
+    reassigned_total = 0
+    component_rewrites: list[dict[str, Any]] = []
+    component_count = int(component_ids.max()) + 1 if len(component_ids) else 0
+    for component_id in range(component_count):
+        member_indexes = np.flatnonzero(component_ids == component_id)
+        if len(member_indexes) == 0:
+            continue
+        label = int(labels[int(member_indexes[0])])
+        if label == body_label:
+            continue
+        signals = _duck_color_signals(palette_array[label])
+        member_count = int(len(member_indexes))
+        share = float(member_count) / float(max(len(labels), 1))
+        zone_blue_share = float(np.mean(blue_body_zone[member_indexes]))
+        zone_head_share = float(np.mean(head_cap_zone[member_indexes]))
+        zone_face_share = float(np.mean(face_zone[member_indexes]))
+        zone_beak_share = float(np.mean(beak_zone[member_indexes]))
+        luminance = _relative_luminance(palette_array[label])
+        is_misplaced_beak_color = (
+            float(signals["orange"]) >= 0.08
+            and float(signals["warm"]) >= 0.20
+            and float(signals["orange"]) >= float(signals["red"])
+            and luminance < 0.68
+        )
+        is_neutral = float(signals["neutral"]) >= 0.30
+        is_light_neutral_detail = is_neutral and luminance >= 0.62
+
+        should_reassign = False
+        reason = ""
+        if is_misplaced_beak_color and zone_beak_share < 0.35 and zone_blue_share >= 0.30:
+            should_reassign = True
+            reason = "yellow_orange_color_outside_beak"
+        elif is_neutral and not is_light_neutral_detail and zone_head_share >= 0.48 and (member_count >= 500 or share >= 0.006):
+            should_reassign = True
+            reason = "large_neutral_head_cap"
+        elif is_neutral and not is_light_neutral_detail and zone_blue_share >= 0.70 and (member_count >= 900 or share >= 0.010):
+            should_reassign = True
+            reason = "large_neutral_body_patch"
+        elif float(signals["red"]) >= 0.16 and zone_head_share >= 0.28 and member_count <= 800:
+            should_reassign = True
+            reason = "small_red_head_mark"
+        elif (
+            int(label) != int(beak_label)
+            and float(signals["red"]) >= 0.16
+            and zone_face_share >= 0.80
+            and zone_beak_share < 0.35
+            and member_count <= 240
+        ):
+            should_reassign = True
+            reason = "small_red_face_mark"
+
+        if should_reassign:
+            labels[member_indexes] = int(body_label)
+            reassigned_total += member_count
+            component_rewrites.append(
+                {
+                    "component_id": int(component_id),
+                    "from_label": label,
+                    "to_label": int(body_label),
+                    "face_count": member_count,
+                    "reason": reason,
+                    "zone_blue_share": round(zone_blue_share, 4),
+                    "zone_head_share": round(zone_head_share, 4),
+                    "zone_face_share": round(zone_face_share, 4),
+                    "zone_beak_share": round(zone_beak_share, 4),
+                    "luminance": round(float(luminance), 4),
+                }
+            )
+
+    return labels, {
+        "policy": "duck_color_intent_v1",
+        "applied": bool(reassigned_total),
+        "body_label": int(body_label),
+        "fallback_blue_label": None if fallback_blue_label is None else int(fallback_blue_label),
+        "beak_label": None if beak_label is None else int(beak_label),
+        "reassigned_faces": int(reassigned_total),
+        "component_rewrites": component_rewrites,
+    }
 
 
 def _duck_role_zone_scores(centroids: np.ndarray) -> dict[str, np.ndarray]:
@@ -1068,6 +1275,230 @@ def _component_metrics(face_labels: np.ndarray, faces: np.ndarray) -> dict[str, 
     }
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _mesh_geometry_stats(positions: np.ndarray, faces: np.ndarray) -> dict[str, Any]:
+    mesh = trimesh.Trimesh(
+        vertices=np.asarray(positions, dtype=np.float32),
+        faces=np.asarray(faces, dtype=np.int64),
+        process=False,
+    )
+    face_count = int(len(np.asarray(faces)))
+    return {
+        "vertex_count": int(len(np.asarray(positions))),
+        "face_count": face_count,
+        "is_watertight": bool(mesh.is_watertight),
+        "is_winding_consistent": bool(mesh.is_winding_consistent),
+        "euler_number": int(mesh.euler_number),
+        "body_count": None if face_count > 200_000 else int(len(mesh.split(only_watertight=False))),
+    }
+
+
+def _simplify_loaded_geometry(
+    loaded: LoadedTexturedMesh,
+    *,
+    target_face_count: int | None,
+) -> tuple[LoadedTexturedMesh, dict[str, Any]]:
+    face_array = np.asarray(loaded.faces, dtype=np.int64)
+    if target_face_count is None or len(face_array) <= int(target_face_count):
+        return loaded, {
+            "simplification_applied": False,
+            "target_face_count": None if target_face_count is None else int(target_face_count),
+            "source_face_count": int(len(face_array)),
+            "result_face_count": int(len(face_array)),
+        }
+
+    mesh = trimesh.Trimesh(
+        vertices=np.asarray(loaded.positions, dtype=np.float32),
+        faces=face_array,
+        process=False,
+    )
+    simplified = mesh.simplify_quadric_decimation(face_count=int(target_face_count))
+    simplified_positions = np.asarray(simplified.vertices, dtype=np.float32)
+    simplified_faces = np.asarray(simplified.faces, dtype=np.int64)
+    simplified_loaded = LoadedTexturedMesh(
+        mesh=simplified,
+        positions=simplified_positions,
+        faces=simplified_faces,
+        texcoords=np.zeros((len(simplified_positions), 2), dtype=np.float32),
+        texture_rgb=np.asarray(loaded.texture_rgb, dtype=np.uint8),
+        source_path=loaded.source_path,
+        texture_path=loaded.texture_path,
+        source_format=loaded.source_format,
+        normal_texture_rgb=loaded.normal_texture_rgb,
+        orm_texture_rgb=loaded.orm_texture_rgb,
+        base_color_factor=loaded.base_color_factor,
+        metallic_factor=loaded.metallic_factor,
+        roughness_factor=loaded.roughness_factor,
+        normal_scale=loaded.normal_scale,
+    )
+    return simplified_loaded, {
+        "simplification_applied": True,
+        "target_face_count": int(target_face_count),
+        "source_face_count": int(len(face_array)),
+        "result_face_count": int(len(simplified_faces)),
+    }
+
+
+def _target_anchor_face_colors(target_loaded: LoadedTexturedMesh, palette: np.ndarray, face_labels: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+    diagnostics = _texture_diagnostics(target_loaded.texture_rgb)
+    if diagnostics.get("texture_role") == "suspected_normal_map":
+        return np.asarray(palette, dtype=np.uint8)[np.asarray(face_labels, dtype=np.int32)], diagnostics
+    return _sample_face_texture_colors(target_loaded), diagnostics
+
+
+def assess_repaired_transfer_candidate(
+    report: dict[str, Any],
+    *,
+    max_auto_faces: int = 250_000,
+    max_components_per_palette_color: int = 48,
+    max_tiny_islands: int = 96,
+    min_largest_component_share: float = 0.08,
+) -> dict[str, Any]:
+    """Decide whether a repaired-geometry transfer is safe to auto-prefer."""
+    face_count = _safe_int(report.get("face_count"))
+    palette_size = max(_safe_int(report.get("palette_size") or report.get("region_count"), 1), 1)
+    component_count = _safe_int(report.get("component_count"))
+    tiny_island_count = _safe_int(report.get("tiny_island_count"))
+    largest_component_share = _safe_float(report.get("largest_component_share"))
+
+    max_component_count = max(palette_size * int(max_components_per_palette_color), palette_size + 8)
+    reasons: list[str] = []
+    if face_count > int(max_auto_faces):
+        reasons.append(
+            f"target face count {face_count:,} is above the auto-use threshold {int(max_auto_faces):,}"
+        )
+    if component_count > max_component_count:
+        reasons.append(
+            f"connected region count {component_count:,} is high for a {palette_size}-color palette"
+        )
+    if tiny_island_count > int(max_tiny_islands):
+        reasons.append(
+            f"tiny island count {tiny_island_count:,} is above the auto-use threshold {int(max_tiny_islands):,}"
+        )
+    if face_count > 0 and largest_component_share < float(min_largest_component_share):
+        reasons.append(
+            f"largest connected region share {largest_component_share:.3f} is below {float(min_largest_component_share):.3f}"
+        )
+    geometry_stats = report.get("target_geometry_stats") or {}
+    if geometry_stats:
+        if geometry_stats.get("is_watertight") is not True:
+            reasons.append("target geometry is not watertight")
+        body_count = geometry_stats.get("body_count")
+        if body_count is None:
+            reasons.append("target geometry body count was not measured")
+        elif int(body_count) != 1:
+            reasons.append(f"target geometry has {int(body_count)} bodies instead of 1")
+
+    ready_for_auto = not reasons
+    return {
+        "status": "ready_for_auto" if ready_for_auto else "needs_review",
+        "ready_for_auto": ready_for_auto,
+        "reasons": reasons,
+        "recommendation": (
+            "Eligible to compare against same-mesh export in the lane chooser."
+            if ready_for_auto
+            else "Do not auto-prefer this repaired transfer yet; compare same-mesh/provider-baked output or regenerate cleaner source art."
+        ),
+        "thresholds": {
+            "max_auto_faces": int(max_auto_faces),
+            "max_components_per_palette_color": int(max_components_per_palette_color),
+            "max_tiny_islands": int(max_tiny_islands),
+            "min_largest_component_share": float(min_largest_component_share),
+        },
+    }
+
+
+def _texture_diagnostics(texture_rgb: np.ndarray) -> dict[str, Any]:
+    texture = np.asarray(texture_rgb, dtype=np.uint8)
+    if texture.size == 0:
+        return {
+            "texture_role": "empty",
+            "mean_rgb": [0.0, 0.0, 0.0],
+            "std_rgb": [0.0, 0.0, 0.0],
+            "min_rgb": [0, 0, 0],
+            "max_rgb": [0, 0, 0],
+        }
+    flat = texture.reshape((-1, 3)).astype(np.float32)
+    mean_rgb = flat.mean(axis=0)
+    std_rgb = flat.std(axis=0)
+    min_rgb = flat.min(axis=0).astype(np.uint8)
+    max_rgb = flat.max(axis=0).astype(np.uint8)
+    blue_bias = float(mean_rgb[2] - max(mean_rgb[0], mean_rgb[1]))
+    red_green_gap = float(abs(mean_rgb[0] - mean_rgb[1]))
+    smooth_normal_signature = (
+        float(mean_rgb[2]) >= 170.0
+        and blue_bias >= 35.0
+        and red_green_gap <= 35.0
+        and float(std_rgb[2]) <= 45.0
+    )
+    high_blue_channel_signature = (
+        float(mean_rgb[2]) >= 150.0
+        and blue_bias >= 55.0
+        and red_green_gap <= 20.0
+    )
+    likely_normal_map = smooth_normal_signature or high_blue_channel_signature
+    return {
+        "texture_role": "suspected_normal_map" if likely_normal_map else "base_color_candidate",
+        "mean_rgb": [round(float(value), 3) for value in mean_rgb.tolist()],
+        "std_rgb": [round(float(value), 3) for value in std_rgb.tolist()],
+        "min_rgb": [int(value) for value in min_rgb.tolist()],
+        "max_rgb": [int(value) for value in max_rgb.tolist()],
+        "blue_bias": round(blue_bias, 3),
+    }
+
+
+def assess_provider_bake_candidate(report: dict[str, Any], texture_diagnostics: dict[str, Any]) -> dict[str, Any]:
+    assessment = assess_repaired_transfer_candidate(
+        report,
+        max_auto_faces=400_000,
+        max_tiny_islands=128,
+    )
+    reasons = list(assessment.get("reasons") or [])
+    if texture_diagnostics.get("texture_role") == "suspected_normal_map":
+        reasons.append("provider baked base-color texture looks like a normal map, not printable color art")
+    if reasons:
+        assessment = {
+            **assessment,
+            "status": "needs_review",
+            "ready_for_auto": False,
+            "reasons": reasons,
+            "recommendation": "Do not auto-prefer this provider-bake lane; use same-mesh/local transfer or request a fresh provider texture bake.",
+        }
+    return assessment
+
+
+def _provider_repair_metadata(repair_result_path: str | Path | None) -> dict[str, Any]:
+    if not repair_result_path:
+        return {}
+    path = Path(repair_result_path).expanduser().resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    results = payload.get("results") or []
+    first_result = results[0] if results else {}
+    metadata = first_result.get("metadata") or {}
+    return {
+        "provider_repair_result_path": str(path),
+        "provider_repair_mode": payload.get("mode"),
+        "provider_repair_status": payload.get("status"),
+        "provider_repair_task_id": payload.get("task_id"),
+        "provider_repair_metadata": metadata,
+        "provider_repair_texture": metadata.get("texture") or {},
+        "provider_repair_output": metadata.get("output") or {},
+    }
+
+
 def _write_palette_csv(path: Path, palette_rows: list[dict[str, Any]], total_faces: int) -> None:
     lines = ["palette_index,hex,r,g,b,face_count,face_share_percent"]
     denominator = max(int(total_faces), 1)
@@ -1168,6 +1599,111 @@ def _write_asset_bundle(
     report_path = output_dir / report_filename
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     report["report_path"] = str(report_path)
+    return report
+
+
+def write_face_color_mesh_to_assets(
+    *,
+    positions: np.ndarray,
+    faces: np.ndarray,
+    face_colors: np.ndarray,
+    source_path: str | Path,
+    out_dir: str | Path,
+    max_colors: int = 8,
+    object_name: str | None = None,
+    strategy: str = "face_color_palette",
+    obj_filename: str = "region_materials.obj",
+    threemf_filename: str = "region_colorgroup.3mf",
+    preview_filename: str = "region_preview.png",
+    swatch_filename: str = "palette_swatches.png",
+    palette_csv_filename: str = "palette.csv",
+    report_filename: str = "conversion_report.json",
+    smooth_iterations: int = 2,
+    min_component_size: int | None = None,
+    cleanup_passes: int = 2,
+    extra_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write Bambu-friendly grouped assets from per-face RGB colors."""
+    started = perf_counter()
+    output_dir = Path(out_dir).expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pos = np.asarray(positions, dtype=np.float32)
+    face_array = np.asarray(faces, dtype=np.int64)
+    colors = np.asarray(face_colors, dtype=np.uint8)
+    palette, face_labels = _quantize_face_colors(colors, pos, face_array, max_colors)
+    minimum_component_size = (
+        max(6, min(64, len(face_array) // 160 or 6))
+        if min_component_size is None
+        else int(min_component_size)
+    )
+    cleanup_pass_count = max(1, int(cleanup_passes))
+    smooth_iteration_count = max(0, int(smooth_iterations))
+    for pass_index in range(cleanup_pass_count):
+        face_labels = merge_small_palette_islands(
+            face_labels,
+            colors,
+            palette,
+            face_array,
+            min_component_size=minimum_component_size,
+        )
+        if smooth_iteration_count > 0:
+            face_labels = smooth_face_palette_indices(
+                face_labels,
+                colors,
+                palette,
+                face_array,
+                iterations=smooth_iteration_count if pass_index == 0 else 1,
+            )
+    face_labels = merge_small_palette_islands(
+        face_labels,
+        colors,
+        palette,
+        face_array,
+        min_component_size=minimum_component_size,
+    )
+    palette, face_labels = compact_palette(palette, face_labels)
+    if len(palette):
+        palette = np.clip(
+            np.rint(average_by_cluster(colors.astype(np.float32), face_labels, len(palette))),
+            0,
+            255,
+        ).astype(np.uint8)
+    loaded = LoadedTexturedMesh(
+        mesh=None,
+        positions=pos,
+        faces=face_array,
+        texcoords=np.zeros((len(pos), 2), dtype=np.float32),
+        texture_rgb=np.zeros((1, 1, 3), dtype=np.uint8),
+        source_path=Path(source_path).expanduser().resolve(),
+        texture_path=None,
+        source_format="face_color_mesh",
+    )
+    report = _write_asset_bundle(
+        loaded=loaded,
+        face_labels=face_labels,
+        palette=palette,
+        output_dir=output_dir,
+        object_name=object_name,
+        obj_filename=obj_filename,
+        threemf_filename=threemf_filename,
+        preview_filename=preview_filename,
+        swatch_filename=swatch_filename,
+        palette_csv_filename=palette_csv_filename,
+        report_filename=report_filename,
+        started=started,
+        strategy=strategy,
+        notes=[
+            "This conversion starts from repaired-geometry face colors, reduces them to a practical filament palette, and writes Bambu-friendly grouped OBJ/MTL assets.",
+            "The vertex-color debug OBJ may preserve denser visual detail, but this grouped OBJ is the printable acceptance artifact.",
+        ],
+        extra_report={
+            "max_colors": int(max_colors),
+            "min_component_size": int(minimum_component_size),
+            "smooth_iterations": int(smooth_iteration_count),
+            "cleanup_passes": int(cleanup_pass_count),
+            **(extra_report or {}),
+        },
+    )
     return report
 
 
@@ -1321,7 +1857,11 @@ def convert_loaded_mesh_to_color_assets(
             palette_csv_filename=palette_csv_filename,
             report_filename=report_filename,
         )
-    if strategy in {"blender_like_bake_face_labels", "blender_like_bake_face_regions"}:
+    if strategy in {
+        "blender_like_bake_face_labels",
+        "blender_like_bake_face_regions",
+        "geometry_transfer_blender_like_bake_face_regions",
+    }:
         return _convert_loaded_mesh_blender_like_bake_face_labels(
             loaded,
             out_dir=out_dir,
@@ -1472,7 +2012,7 @@ def convert_color_transferred_mesh_to_assets(
             normal_power=1.35,
         )
         face_labels = np.asarray(transferred["target_face_labels"], dtype=np.int32)
-        target_face_texture_colors = _sample_face_texture_colors(target_loaded)
+        target_face_texture_colors, target_texture_diagnostics = _target_anchor_face_colors(target_loaded, palette, face_labels)
         face_labels = _apply_duck_part_anchor_bias(
             face_labels=face_labels,
             palette=palette,
@@ -1530,6 +2070,7 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "corner_face_regions",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                "target_texture_diagnostics": target_texture_diagnostics,
                 "corner_bake_metadata": corner_metadata,
             },
         )
@@ -1721,7 +2262,7 @@ def convert_color_transferred_mesh_to_assets(
             chunk_size=1024,
         )
         face_labels = np.asarray(transferred["target_face_labels"], dtype=np.int32)
-        target_face_texture_colors = _sample_face_texture_colors(target_loaded)
+        target_face_texture_colors, target_texture_diagnostics = _target_anchor_face_colors(target_loaded, palette, face_labels)
         face_labels = _apply_duck_part_anchor_bias(
             face_labels=face_labels,
             palette=palette,
@@ -1779,6 +2320,7 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "connected_face_regions",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                "target_texture_diagnostics": target_texture_diagnostics,
                 **source_regions.metadata,
             },
         )
@@ -1812,7 +2354,7 @@ def convert_color_transferred_mesh_to_assets(
                 smoothness_weight=0.42,
                 boundary_power=1.8,
             )
-        target_face_texture_colors = _sample_face_texture_colors(target_loaded)
+        target_face_texture_colors, target_texture_diagnostics = _target_anchor_face_colors(target_loaded, palette, face_labels)
         face_labels = _apply_duck_part_anchor_bias(
             face_labels=face_labels,
             palette=palette,
@@ -1870,10 +2412,17 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "connected_face_regions_graph",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                "target_texture_diagnostics": target_texture_diagnostics,
                 **source_regions.metadata,
             },
         )
-    if strategy in {"blender_like_bake_face_labels", "blender_like_bake_face_regions"}:
+    if strategy in {
+        "blender_like_bake_face_labels",
+        "blender_like_bake_face_regions",
+        "geometry_transfer_blender_like_bake_face_regions",
+        "geometry_transfer_blender_like_bake_duck_intent",
+    }:
+        duck_intent_enabled = strategy == "geometry_transfer_blender_like_bake_duck_intent"
         baked_vertex_colors, bake_metadata = bake_texture_to_vertex_colors(
             color_source_loaded.texture_rgb,
             color_source_loaded.texcoords,
@@ -1899,7 +2448,7 @@ def convert_color_transferred_mesh_to_assets(
             chunk_size=1024,
         )
         face_labels = np.asarray(transferred["target_face_labels"], dtype=np.int32)
-        target_face_texture_colors = _sample_face_texture_colors(target_loaded)
+        target_face_texture_colors, target_texture_diagnostics = _target_anchor_face_colors(target_loaded, palette, face_labels)
         face_labels = _apply_duck_part_anchor_bias(
             face_labels=face_labels,
             palette=palette,
@@ -1925,6 +2474,15 @@ def convert_color_transferred_mesh_to_assets(
             iterations=3,
         )
         palette, face_labels = compact_palette(palette, face_labels)
+        duck_color_intent: dict[str, Any] | None = None
+        if duck_intent_enabled:
+            face_labels, duck_color_intent = _apply_duck_color_intent_rules(
+                face_labels=face_labels,
+                palette=palette,
+                positions=target_loaded.positions,
+                faces=target_loaded.faces,
+            )
+            palette, face_labels = compact_palette(palette, face_labels)
         return _write_asset_bundle(
             loaded=target_loaded,
             face_labels=face_labels,
@@ -1938,10 +2496,15 @@ def convert_color_transferred_mesh_to_assets(
             palette_csv_filename=palette_csv_filename,
             report_filename=report_filename,
             started=started,
-            strategy="geometry_transfer_blender_like_bake_face_regions",
+            strategy="geometry_transfer_blender_like_bake_duck_intent" if duck_intent_enabled else "geometry_transfer_blender_like_bake_face_regions",
             notes=[
                 "This conversion uses a Blender-like source bake first, then transfers connected baked face regions onto the target geometry.",
                 "It is intended to preserve cleaner source paint regions than raw nearest texture sampling or per-vertex label voting during repaired-geometry transfer.",
+                *(
+                    ["Duck color-intent cleanup keeps large body/head regions blue, keeps warm colors mostly on the beak, and preserves small emblems."]
+                    if duck_intent_enabled
+                    else []
+                ),
                 "3MF export still uses standards-based colorgroup face colors.",
             ],
             extra_report={
@@ -1958,6 +2521,8 @@ def convert_color_transferred_mesh_to_assets(
                 "region_transfer_mode": "connected_face_regions",
                 "source_component_count": int(transferred["source_component_count"]),
                 "duck_part_anchor_labels": anchor_labels,
+                "duck_color_intent": duck_color_intent,
+                "target_texture_diagnostics": target_texture_diagnostics,
             },
         )
 
@@ -2042,6 +2607,7 @@ def convert_repaired_color_transfer_to_assets(
     target_texture_path: str | Path | None = None,
     out_dir: str | Path | None = None,
     max_colors: int = 12,
+    target_face_count: int | None = None,
     strategy: str = "legacy_fast_face_labels",
     object_name: str | None = None,
     obj_filename: str = "region_materials.obj",
@@ -2053,6 +2619,12 @@ def convert_repaired_color_transfer_to_assets(
 ) -> dict[str, Any]:
     color_source_loaded = load_textured_model(color_source_path, texture_path=color_source_texture_path)
     target_loaded = load_geometry_model(target_path, texture_path=target_texture_path)
+    target_original_geometry_stats = _mesh_geometry_stats(target_loaded.positions, target_loaded.faces)
+    target_loaded, target_simplification = _simplify_loaded_geometry(
+        target_loaded,
+        target_face_count=target_face_count,
+    )
+    target_geometry_stats = _mesh_geometry_stats(target_loaded.positions, target_loaded.faces)
     report = convert_color_transferred_mesh_to_assets(
         target_loaded=target_loaded,
         color_source_loaded=color_source_loaded,
@@ -2073,6 +2645,43 @@ def convert_repaired_color_transfer_to_assets(
             "target_path": str(target_loaded.source_path),
             "target_source_format": target_loaded.source_format,
             "target_texture_path": str(target_loaded.texture_path) if target_loaded.texture_path else None,
+            "target_original_geometry_stats": target_original_geometry_stats,
+            "target_simplification": target_simplification,
+            "target_geometry_stats": target_geometry_stats,
+        }
+    )
+    report["repaired_transfer_assessment"] = assess_repaired_transfer_candidate(report)
+    report_path = Path(str(report["report_path"]))
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
+
+
+def convert_provider_baked_model_to_assets(
+    provider_baked_path: str | Path,
+    *,
+    texture_path: str | Path | None = None,
+    repair_result_path: str | Path | None = None,
+    out_dir: str | Path | None = None,
+    n_regions: int = 8,
+    strategy: str = "blender_cleanup_face_labels",
+    object_name: str | None = None,
+) -> dict[str, Any]:
+    loaded = load_textured_model(provider_baked_path, texture_path=texture_path)
+    texture_diagnostics = _texture_diagnostics(loaded.texture_rgb)
+    report = convert_loaded_mesh_to_color_assets(
+        loaded,
+        out_dir=out_dir,
+        n_regions=n_regions,
+        strategy=strategy,
+        object_name=object_name,
+    )
+    report.update(
+        {
+            "conversion_lane": "provider_baked_repaired_same_mesh",
+            "provider_baked_path": str(Path(provider_baked_path).expanduser().resolve()),
+            "provider_bake_texture_diagnostics": texture_diagnostics,
+            "provider_bake_assessment": assess_provider_bake_candidate(report, texture_diagnostics),
+            **_provider_repair_metadata(repair_result_path),
         }
     )
     report_path = Path(str(report["report_path"]))

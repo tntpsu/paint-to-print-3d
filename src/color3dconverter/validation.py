@@ -3,6 +3,160 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from zipfile import ZipFile, is_zipfile
+import xml.etree.ElementTree as ET
+
+
+THREEMF_CORE_NS = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+THREEMF_MATERIAL_NS = "http://schemas.microsoft.com/3dmanufacturing/material/2015/02"
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _read_grouped_obj_geometry_stats(obj_path: str | Path) -> dict[str, Any]:
+    import numpy as np
+    import trimesh
+
+    path = Path(obj_path).expanduser().resolve()
+    vertices: list[tuple[float, float, float]] = []
+    faces: list[list[int]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("v "):
+            parts = line.split()
+            if len(parts) >= 4:
+                vertices.append((float(parts[1]), float(parts[2]), float(parts[3])))
+        elif line.startswith("f "):
+            face: list[int] = []
+            for token in line.split()[1:]:
+                face.append(int(token.split("/")[0]) - 1)
+            if len(face) == 3:
+                faces.append(face)
+
+    mesh = trimesh.Trimesh(
+        vertices=np.asarray(vertices, dtype=np.float64),
+        faces=np.asarray(faces, dtype=np.int64),
+        process=False,
+    )
+    return {
+        "path": str(path),
+        "vertex_count": len(vertices),
+        "face_count": len(faces),
+        "is_watertight": bool(mesh.is_watertight),
+        "is_winding_consistent": bool(mesh.is_winding_consistent),
+        "euler_number": int(mesh.euler_number),
+        "body_count": int(len(mesh.split(only_watertight=False))),
+    }
+
+
+def _count_mtl_materials(mtl_path: str | Path) -> int:
+    path = Path(mtl_path).expanduser().resolve()
+    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("newmtl "))
+
+
+def _read_3mf_colorgroup_stats(threemf_path: str | Path) -> dict[str, Any]:
+    path = Path(threemf_path).expanduser().resolve()
+    if not is_zipfile(path):
+        return {"path": str(path), "zip_ok": False}
+
+    with ZipFile(path, "r") as archive:
+        model_bytes = archive.read("3D/3dmodel.model")
+
+    root = ET.fromstring(model_bytes)
+    namespaces = {"core": THREEMF_CORE_NS, "m": THREEMF_MATERIAL_NS}
+    vertices = root.findall(".//core:vertices/core:vertex", namespaces)
+    triangles = root.findall(".//core:triangles/core:triangle", namespaces)
+    colors = root.findall(".//m:colorgroup/m:color", namespaces)
+    triangle_color_indexes: list[int] = []
+    for triangle in triangles:
+        for key in ("p1", "p2", "p3"):
+            if key in triangle.attrib:
+                triangle_color_indexes.append(int(triangle.attrib[key]))
+    return {
+        "path": str(path),
+        "zip_ok": True,
+        "vertex_count": len(vertices),
+        "triangle_count": len(triangles),
+        "color_count": len(colors),
+        "min_color_index": min(triangle_color_indexes) if triangle_color_indexes else None,
+        "max_color_index": max(triangle_color_indexes) if triangle_color_indexes else None,
+        "triangle_color_index_count": len(triangle_color_indexes),
+    }
+
+
+def validate_bambu_material_bundle(
+    report: dict[str, Any],
+    *,
+    require_watertight: bool = True,
+    require_single_body: bool = True,
+    max_tiny_islands: int = 96,
+    max_components_per_palette_color: int = 48,
+) -> dict[str, Any]:
+    """Validate the actual OBJ/MTL/3MF files Bambu Studio will import.
+
+    Trimesh can split a material-grouped OBJ by material on import, so this reads
+    the OBJ vertices/faces directly before measuring topology.
+    """
+    reasons: list[str] = []
+    palette_size = _safe_int(report.get("palette_size") or report.get("region_count"), 1)
+    vertex_count = _safe_int(report.get("vertex_count"))
+    face_count = _safe_int(report.get("face_count"))
+    component_count = _safe_int(report.get("component_count"))
+    tiny_island_count = _safe_int(report.get("tiny_island_count"))
+
+    obj_stats = _read_grouped_obj_geometry_stats(report["obj_path"])
+    if obj_stats["vertex_count"] != vertex_count:
+        reasons.append(f"OBJ vertex count {obj_stats['vertex_count']:,} does not match report {vertex_count:,}")
+    if obj_stats["face_count"] != face_count:
+        reasons.append(f"OBJ face count {obj_stats['face_count']:,} does not match report {face_count:,}")
+    if require_watertight and obj_stats["is_watertight"] is not True:
+        reasons.append("OBJ geometry is not watertight when parsed independent of material groups")
+    if require_single_body and int(obj_stats["body_count"]) != 1:
+        reasons.append(f"OBJ geometry has {obj_stats['body_count']} bodies instead of 1")
+
+    material_count = _count_mtl_materials(report["mtl_path"])
+    if material_count != palette_size:
+        reasons.append(f"MTL material count {material_count} does not match palette size {palette_size}")
+
+    threemf_stats = _read_3mf_colorgroup_stats(report["threemf_path"])
+    if not threemf_stats.get("zip_ok"):
+        reasons.append("3MF is not a valid zip package")
+    else:
+        if threemf_stats.get("vertex_count") != vertex_count:
+            reasons.append(f"3MF vertex count {threemf_stats.get('vertex_count'):,} does not match report {vertex_count:,}")
+        if threemf_stats.get("triangle_count") != face_count:
+            reasons.append(f"3MF triangle count {threemf_stats.get('triangle_count'):,} does not match report {face_count:,}")
+        if threemf_stats.get("color_count") != palette_size:
+            reasons.append(f"3MF color count {threemf_stats.get('color_count')} does not match palette size {palette_size}")
+        max_color_index = threemf_stats.get("max_color_index")
+        if max_color_index is not None and int(max_color_index) >= palette_size:
+            reasons.append(f"3MF references color index {max_color_index}, outside palette size {palette_size}")
+
+    max_components = max(palette_size * int(max_components_per_palette_color), palette_size + 8)
+    if component_count > max_components:
+        reasons.append(f"connected component count {component_count:,} exceeds threshold {max_components:,}")
+    if tiny_island_count > int(max_tiny_islands):
+        reasons.append(f"tiny island count {tiny_island_count:,} exceeds threshold {int(max_tiny_islands):,}")
+
+    ready = not reasons
+    return {
+        "status": "ready_for_bambu" if ready else "needs_review",
+        "ready_for_bambu": ready,
+        "reasons": reasons,
+        "obj_topology": obj_stats,
+        "mtl_material_count": material_count,
+        "threemf_colorgroup": threemf_stats,
+        "thresholds": {
+            "max_tiny_islands": int(max_tiny_islands),
+            "max_components_per_palette_color": int(max_components_per_palette_color),
+            "require_watertight": bool(require_watertight),
+            "require_single_body": bool(require_single_body),
+        },
+    }
 
 
 def write_source_export_comparison(

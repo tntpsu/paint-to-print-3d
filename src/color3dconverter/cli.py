@@ -12,15 +12,16 @@ from .benchmark import (
     run_surface_bake_experiments,
 )
 from .fixtures import list_benchmark_fixtures
-from .pipeline import convert_model_to_color_assets, convert_repaired_color_transfer_to_assets
-from .production import run_production_conversion
+from .lane_chooser import choose_conversion_lane
+from .pipeline import convert_model_to_color_assets, convert_provider_baked_model_to_assets, convert_repaired_color_transfer_to_assets
+from .production import run_production_conversion, run_repaired_production_conversion
 from .provider_oracle import run_provider_oracle_experiments
 from .repair_then_bake import run_repair_then_bake_experiment
 from .shading_model import bundle_shading_models, convert_with_shading_model, train_shading_model
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="3dcolorconverter")
+    parser = argparse.ArgumentParser(description="paint-to-print-3d")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     convert_parser = subparsers.add_parser("convert-obj", help="Convert a textured OBJ into region-based assets.")
@@ -39,6 +40,15 @@ def main() -> None:
     convert_model_parser.add_argument("--strategy", choices=["region_first", "legacy_fast_face_labels", "legacy_corner_face_labels", "blender_like_bake_face_labels", "blender_cleanup_face_labels", "hue_vcm_cleanup_face_labels"], default="region_first")
     convert_model_parser.add_argument("--object-name")
 
+    provider_bake_parser = subparsers.add_parser("convert-provider-bake", help="Convert a provider-baked repaired textured model into Bambu-friendly region assets.")
+    provider_bake_parser.add_argument("provider_baked_path")
+    provider_bake_parser.add_argument("--texture-path")
+    provider_bake_parser.add_argument("--repair-result-json")
+    provider_bake_parser.add_argument("--out-dir")
+    provider_bake_parser.add_argument("--regions", type=int, default=8)
+    provider_bake_parser.add_argument("--strategy", choices=["region_first", "legacy_fast_face_labels", "legacy_corner_face_labels", "blender_like_bake_face_labels", "blender_cleanup_face_labels", "hue_vcm_cleanup_face_labels"], default="blender_cleanup_face_labels")
+    provider_bake_parser.add_argument("--object-name")
+
     production_parser = subparsers.add_parser("convert-production", help="Run the production same-mesh converter with gated candidate selection.")
     production_parser.add_argument("source_path")
     production_parser.add_argument("--texture-path")
@@ -47,6 +57,23 @@ def main() -> None:
     production_parser.add_argument("--quality-threshold", type=float, default=0.02)
     production_parser.add_argument("--no-fail-closed", action="store_true")
 
+    repaired_production_parser = subparsers.add_parser("convert-repaired-production", help="Repair source geometry, transfer printable paint regions, and validate Bambu assets.")
+    repaired_production_parser.add_argument("source_path")
+    repaired_production_parser.add_argument("--texture-path")
+    repaired_production_parser.add_argument("--out-dir", required=True)
+    repaired_production_parser.add_argument("--object-name")
+    repaired_production_parser.add_argument("--repair-backend", choices=["trimesh_clean", "pymeshfix_core", "voxel_marching_cubes"], default="voxel_marching_cubes")
+    repaired_production_parser.add_argument("--target-face-count", type=int, default=250000)
+    repaired_production_parser.add_argument("--max-colors", type=int, default=8)
+    repaired_production_parser.add_argument("--transfer-strategy", choices=["geometry_transfer_legacy_face_regions_graph", "geometry_transfer_blender_like_bake_face_regions", "geometry_transfer_blender_like_bake_duck_intent", "geometry_transfer_legacy_corner_face_regions"], default="geometry_transfer_blender_like_bake_duck_intent")
+    repaired_production_parser.add_argument("--repair-smoothing-iterations", type=int)
+    repaired_production_parser.add_argument("--repair-voxel-divisions", type=int, default=128)
+    repaired_production_parser.add_argument("--no-fail-closed", action="store_true")
+
+    lane_chooser_parser = subparsers.add_parser("choose-lane", help="Choose the best report-ready conversion lane without mutating assets.")
+    lane_chooser_parser.add_argument("report_paths", nargs="+")
+    lane_chooser_parser.add_argument("--out-report")
+
     repaired_parser = subparsers.add_parser("convert-repaired-transfer", help="Transfer colors from a textured source model onto repaired target geometry.")
     repaired_parser.add_argument("color_source_path")
     repaired_parser.add_argument("target_path")
@@ -54,6 +81,7 @@ def main() -> None:
     repaired_parser.add_argument("--target-texture-path")
     repaired_parser.add_argument("--out-dir", required=True)
     repaired_parser.add_argument("--max-colors", type=int, default=12)
+    repaired_parser.add_argument("--target-face-count", type=int)
     repaired_parser.add_argument(
         "--strategy",
         choices=[
@@ -68,6 +96,7 @@ def main() -> None:
             "geometry_transfer_legacy_face_regions_graph",
             "geometry_transfer_legacy_corner_face_regions",
             "geometry_transfer_blender_like_bake_face_regions",
+            "geometry_transfer_blender_like_bake_duck_intent",
             "geometry_transfer_duck_semantic_parts",
             "geometry_transfer_duck_seeded_parts",
             "region_first",
@@ -128,10 +157,11 @@ def main() -> None:
     repair_bake_parser.add_argument("source_path")
     repair_bake_parser.add_argument("--out-dir", required=True)
     repair_bake_parser.add_argument("--provider-target-obj")
-    repair_bake_parser.add_argument("--backend", action="append", choices=["trimesh_clean", "pymeshfix_core"])
+    repair_bake_parser.add_argument("--backend", action="append", choices=["trimesh_clean", "pymeshfix_core", "voxel_marching_cubes"])
     repair_bake_parser.add_argument("--bake-method", choices=["nearest_vertex", "nearest_surface_uv"], default="nearest_surface_uv")
     repair_bake_parser.add_argument("--sample-size", type=int, default=12000)
     repair_bake_parser.add_argument("--target-face-count", type=int, default=250000)
+    repair_bake_parser.add_argument("--max-colors", type=int, default=8)
     repair_bake_parser.add_argument("--seed", type=int, default=42)
 
     shading_parser = subparsers.add_parser("train-shading-model", help="Train a shared repaired shading model from provider source/target pairs.")
@@ -175,6 +205,27 @@ def main() -> None:
             fail_closed=not bool(args.no_fail_closed),
         )
         print(json.dumps(report, indent=2))
+    elif args.command == "convert-repaired-production":
+        report = run_repaired_production_conversion(
+            args.source_path,
+            texture_path=args.texture_path,
+            out_dir=args.out_dir,
+            object_name=args.object_name,
+            repair_backend=args.repair_backend,
+            target_face_count=args.target_face_count,
+            max_colors=args.max_colors,
+            transfer_strategy=args.transfer_strategy,
+            repair_smoothing_iterations=args.repair_smoothing_iterations,
+            repair_voxel_divisions=args.repair_voxel_divisions,
+            fail_closed=not bool(args.no_fail_closed),
+        )
+        print(json.dumps(report, indent=2))
+    elif args.command == "choose-lane":
+        report = choose_conversion_lane(
+            args.report_paths,
+            out_report=args.out_report,
+        )
+        print(json.dumps(report, indent=2))
     elif args.command == "convert-repaired-transfer":
         report = convert_repaired_color_transfer_to_assets(
             args.color_source_path,
@@ -183,6 +234,7 @@ def main() -> None:
             target_texture_path=args.target_texture_path,
             out_dir=args.out_dir,
             max_colors=args.max_colors,
+            target_face_count=args.target_face_count,
             strategy=args.strategy,
             object_name=args.object_name,
         )
@@ -191,6 +243,17 @@ def main() -> None:
         report = convert_model_to_color_assets(
             args.source_path,
             texture_path=args.texture_path,
+            out_dir=args.out_dir,
+            n_regions=args.regions,
+            strategy=args.strategy,
+            object_name=args.object_name,
+        )
+        print(json.dumps(report, indent=2))
+    elif args.command == "convert-provider-bake":
+        report = convert_provider_baked_model_to_assets(
+            args.provider_baked_path,
+            texture_path=args.texture_path,
+            repair_result_path=args.repair_result_json,
             out_dir=args.out_dir,
             n_regions=args.regions,
             strategy=args.strategy,
@@ -265,6 +328,7 @@ def main() -> None:
             sample_size=args.sample_size,
             bake_method=args.bake_method,
             target_face_count=args.target_face_count,
+            max_colors=args.max_colors,
             seed=args.seed,
         )
         print(json.dumps(report, indent=2))

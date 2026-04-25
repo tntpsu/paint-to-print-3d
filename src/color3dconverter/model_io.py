@@ -164,13 +164,15 @@ def _read_accessor(gltf: dict[str, Any], bin_blob: bytes, accessor_index: int) -
     return shaped.reshape((count,)) if component_count == 1 else shaped
 
 
-def _extract_embedded_image(gltf: dict[str, Any], bin_blob: bytes, image_index: int) -> np.ndarray:
+def _extract_embedded_image(gltf: dict[str, Any], bin_blob: bytes, image_index: int, *, flip_y: bool = False) -> np.ndarray:
     image_entry = (gltf.get("images") or [])[image_index]
     buffer_view = (gltf.get("bufferViews") or [])[int(image_entry.get("bufferView") or 0)]
     byte_offset = int(buffer_view.get("byteOffset") or 0)
     byte_length = int(buffer_view.get("byteLength") or 0)
     image_bytes = bin_blob[byte_offset : byte_offset + byte_length]
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    if flip_y:
+        image = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     return np.array(image, dtype=np.uint8)
 
 
@@ -178,6 +180,8 @@ def _extract_optional_embedded_texture(
     gltf: dict[str, Any],
     bin_blob: bytes,
     texture_info: dict[str, Any] | None,
+    *,
+    flip_y: bool = False,
 ) -> np.ndarray | None:
     if not texture_info:
         return None
@@ -187,7 +191,7 @@ def _extract_optional_embedded_texture(
         return None
     texture = textures[int(texture_index)]
     image_index = int(texture.get("source") or 0)
-    return _extract_embedded_image(gltf, bin_blob, image_index)
+    return _extract_embedded_image(gltf, bin_blob, image_index, flip_y=flip_y)
 
 
 def load_textured_glb(glb_path: str | Path) -> LoadedTexturedMesh:
@@ -219,9 +223,12 @@ def load_textured_glb(glb_path: str | Path) -> LoadedTexturedMesh:
     texture_index = int(base_color_texture.get("index") or 0)
     texture = textures[texture_index]
     image_index = int(texture.get("source") or 0)
-    texture_rgb = _extract_embedded_image(gltf, bin_blob, image_index)
-    orm_texture_rgb = _extract_optional_embedded_texture(gltf, bin_blob, pbr.get("metallicRoughnessTexture"))
-    normal_texture_rgb = _extract_optional_embedded_texture(gltf, bin_blob, material.get("normalTexture"))
+    # glTF loaders such as Three.js sample embedded textures with flipY disabled.
+    # The converter's OBJ-era samplers use the opposite image-origin convention,
+    # so normalize GLB textures at load time to keep every downstream path honest.
+    texture_rgb = _extract_embedded_image(gltf, bin_blob, image_index, flip_y=True)
+    orm_texture_rgb = _extract_optional_embedded_texture(gltf, bin_blob, pbr.get("metallicRoughnessTexture"), flip_y=True)
+    normal_texture_rgb = _extract_optional_embedded_texture(gltf, bin_blob, material.get("normalTexture"), flip_y=True)
     base_color_factor = np.asarray(pbr.get("baseColorFactor") or [1.0, 1.0, 1.0, 1.0], dtype=np.float32)
     metallic_factor = float(pbr.get("metallicFactor") or 1.0)
     roughness_factor = float(pbr.get("roughnessFactor") or 1.0)

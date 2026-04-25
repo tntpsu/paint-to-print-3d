@@ -14,7 +14,7 @@ This plan is the practical endgame for the current problem.
 It is based on the actual evidence from:
 
 - the old `3dcolor` Grinch conversion
-- `3dcolorconverter`
+- `paint-to-print-3d`
 - DuckAgent cowgirl and bold-cowgirl runs
 - Bambu Studio importer code
 - Blender 3MF exporter code
@@ -100,13 +100,27 @@ The likely production answer is:
 
 That is still a finished system.
 
+### 6. Provider bake is now a first-class oracle lane
+
+3D AI Studio's repair and bake-texture APIs document the exact class of operation we were trying to rediscover locally: remesh or retopologize geometry, then bake the original texture signal onto the new mesh.
+
+Important implication:
+
+- local repaired-region transfer should not become the default until it beats provider-baked output and same-mesh output
+- provider-baked output still needs conversion into practical Bambu color regions
+- the immediate roadmap should compare all three lanes before promoting any one path
+
+Detailed plan:
+
+- `docs/REPAIRED_TRANSFER_RESEARCH_AND_ROLLOUT_PLAN.md`
+
 ## Definition Of Done
 
 This project is done when all of the following are true.
 
 ### Technical done
 
-- `3dcolorconverter` has a stable API for:
+- `paint-to-print-3d` has a stable API for:
   - same-mesh conversion
   - repaired-geometry region transfer
   - grouped OBJ/MTL export
@@ -454,7 +468,7 @@ Implement:
 Deliverables:
 
 - stable fixture paths
-- one benchmark runner in `3dcolorconverter`
+- one benchmark runner in `paint-to-print-3d`
 
 Exit condition:
 
@@ -566,6 +580,8 @@ Implement a lane chooser:
 Important:
 
 - this is where we “finish” the workflow even if repaired transfer is not universally best
+- the first implementation is report-only via `choose_conversion_lane(...)` and `python -m color3dconverter.cli choose-lane`
+- the chooser currently outputs `selected_lane`, `rejected_lanes`, and the policy reasons without mutating assets
 
 Exit condition:
 
@@ -634,7 +650,7 @@ This is the implementation order I would follow.
    - banded sphere
    - simple toy duck
 2. Add benchmark harness and fixture manifest
-3. Lock Grinch exact regression in `3dcolorconverter`
+3. Lock Grinch exact regression in `paint-to-print-3d`
 4. Add same-mesh cowgirl regression pack
 5. Formalize `RegionTransferSource`
 6. Improve target-face scoring for region transfer

@@ -79,6 +79,13 @@ def test_run_repair_then_bake_experiment_writes_outputs(tmp_path: Path) -> None:
     assert report["best_result"] is not None
     assert report["best_result"]["backend"] == "trimesh_clean"
     assert Path(report["best_result"]["predicted_obj_path"]).exists()
+    assert Path(report["best_result"]["bambu_printable_obj_path"]).exists()
+    assert Path(report["best_result"]["bambu_printable_mtl_path"]).exists()
+    assert Path(report["best_result"]["bambu_printable_3mf_path"]).exists()
+    assert Path(report["best_result"]["bambu_printable_report_path"]).exists()
+    assert report["best_result"]["bambu_printable_palette_size"] >= 1
+    assert "ready_for_bambu_print" in report
+    assert "bambu_print_ready_assessment" in report["best_result"]
     assert Path(report["best_result"]["preview_path"]).exists()
     assert Path(report["best_result"]["board_path"]).exists()
     assert report["best_result"]["provider_color_metrics"]["mean_abs_total"] == 0.0

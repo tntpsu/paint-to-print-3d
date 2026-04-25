@@ -23,7 +23,7 @@ def write_obj_with_vertex_colors(
     uv_array = None if texcoords is None else np.asarray(texcoords, dtype=np.float32)
 
     lines = [
-        "# 3dcolorconverter vertex-color OBJ",
+        "# paint-to-print-3d vertex-color OBJ",
         f"o {object_name}",
     ]
     vertex_index = 1
@@ -77,7 +77,7 @@ def write_obj_with_per_vertex_colors(
         raise ValueError("vertex_colors must align with positions")
 
     lines = [
-        "# 3dcolorconverter per-vertex-color OBJ",
+        "# paint-to-print-3d per-vertex-color OBJ",
         f"o {object_name}",
     ]
     for index, position in enumerate(pos.tolist()):

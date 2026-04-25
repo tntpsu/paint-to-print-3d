@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Make `3dcolorconverter` the reusable conversion layer that DuckAgent calls for:
+Make `paint-to-print-3d` the reusable conversion layer that DuckAgent calls for:
 - local Bambu-friendly color exports
 - standards-based `colorgroup` 3MF generation
 - grouped OBJ/MTL material exports
@@ -36,7 +36,7 @@ This causes:
 
 ## Target Architecture
 
-### `3dcolorconverter` owns
+### `paint-to-print-3d` owns
 
 - mesh + texture ingestion
 - texture-region segmentation
@@ -195,7 +195,7 @@ This should be added only after GLB support is stable.
 
 ### Step 1: Add package as local dependency
 
-DuckAgent should be able to import `3dcolorconverter` in local development without copying files around.
+DuckAgent should be able to import the `color3dconverter` Python package from `paint-to-print-3d` in local development without copying files around.
 
 Possible approaches:
 - editable install in the shared venv
@@ -209,13 +209,13 @@ Recommended first step:
 
 Create a single adapter module in DuckAgent that:
 - converts run metadata into converter inputs
-- calls `3dcolorconverter`
+- calls `paint-to-print-3d`
 - maps the report back into DuckAgent artifact records
 
 DuckAgent should not import multiple internal converter modules directly.
 
 Current execution note:
-- use `3dcolorconverter` as the primary backend for single-source and simplified single-source local exports
+- use `paint-to-print-3d` as the primary backend for single-source and simplified single-source local exports
 - dual-source repaired-geometry + transferred-color runs now use the package too
 - keep the legacy DuckAgent exporter only as a safety fallback if the package path errors on a specific run
 
@@ -232,7 +232,7 @@ The viewer should not need a major rewrite for the first migration.
 
 For a short migration period:
 - run existing DuckAgent exporter
-- run `3dcolorconverter`
+- run `paint-to-print-3d`
 - compare reports/previews side by side
 
 This gives us confidence before removing old code.
@@ -240,7 +240,7 @@ This gives us confidence before removing old code.
 ### Step 5: Switch primary export path
 
 Once stable:
-- `3dcolorconverter` becomes the default conversion backend
+- `paint-to-print-3d` becomes the default conversion backend
 - old inline conversion code becomes fallback/legacy
 
 ### Step 6: Remove duplicated low-level logic
@@ -284,7 +284,7 @@ Each phase should pass:
 1. finalize current OBJ-based public package
 2. port GLB ingestion from DuckAgent
 3. add a unified `convert_model_to_color_assets` pipeline entry point
-4. add preview/comparison outputs into `3dcolorconverter`
+4. add preview/comparison outputs into `paint-to-print-3d`
 5. create DuckAgent adapter module
 6. run dual-output comparison on known concept runs
 7. switch DuckAgent local Bambu lane to this package
@@ -298,5 +298,5 @@ Each phase should pass:
 ## Guiding Rule
 
 If logic is:
-- about conversion correctness: it belongs in `3dcolorconverter`
+- about conversion correctness: it belongs in `paint-to-print-3d`
 - about run orchestration, UI, or operator workflow: it belongs in DuckAgent
