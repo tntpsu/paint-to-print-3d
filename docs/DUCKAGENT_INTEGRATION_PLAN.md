@@ -57,7 +57,20 @@ This causes:
 
 ## Integration Contract
 
-DuckAgent should call a stable Python API like:
+DuckAgent should prefer the handoff API when a textured concept/model is ready to become a printable bundle:
+
+```python
+run_duckagent_handoff(
+    source_path=...,
+    out_dir=...,
+    object_name=...,
+    max_colors=8,
+)
+```
+
+The handoff writes `handoff_manifest.json`, `handoff_qa_board.png`, `handoff_summary.md`, and the lower-level Bambu artifacts/reports. DuckAgent should depend on the manifest contract in [DuckAgent Handoff Contract](DUCKAGENT_HANDOFF_CONTRACT.md).
+
+The lower-level conversion API remains available for narrower workflows:
 
 ```python
 convert_model_to_color_assets(
@@ -217,6 +230,7 @@ DuckAgent should not import multiple internal converter modules directly.
 Current execution note:
 - use `paint-to-print-3d` as the primary backend for single-source and simplified single-source local exports
 - dual-source repaired-geometry + transferred-color runs now use the package too
+- use `build-duckagent-handoff` / `run_duckagent_handoff` when DuckAgent needs an operator-facing printable-model bundle with gates
 - keep the legacy DuckAgent exporter only as a safety fallback if the package path errors on a specific run
 
 ### Step 3: Keep viewer/output contract stable
@@ -266,6 +280,9 @@ Each phase should pass:
 - sample OBJ -> outputs written
 - sample GLB -> outputs written
 - report contract shape
+- handoff manifest exposes stable artifact keys
+- handoff QA board and Markdown summary are written
+- failed required gates keep `ready_for_duckagent_handoff` false
 
 ### DuckAgent smoke tests
 

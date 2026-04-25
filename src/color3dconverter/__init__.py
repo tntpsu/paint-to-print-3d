@@ -4,6 +4,7 @@ from .face_regions import build_region_first_face_palette, sample_texture, trans
 from .export_3mf import write_colorgroup_3mf
 from .export_obj import write_bambu_compatible_grouped_obj_with_mtl, write_grouped_obj_with_mtl
 from .fixtures import BenchmarkFixture, list_benchmark_fixtures, load_benchmark_fixture
+from .handoff import run_duckagent_handoff
 from .lane_chooser import choose_conversion_lane, normalize_lane_candidate
 from .model_io import LoadedTexturedMesh, load_geometry_model, load_textured_glb, load_textured_model, load_textured_obj, load_textured_objzip
 from .paint_cleanup import cleanup_paint_region_labels, paint_component_metrics
@@ -61,6 +62,7 @@ __all__ = [
     "load_textured_objzip",
     "run_benchmark_suite",
     "run_curved_transfer_experiments",
+    "run_duckagent_handoff",
     "run_fixture_benchmark",
     "run_provider_oracle_experiments",
     "run_repair_then_bake_experiment",

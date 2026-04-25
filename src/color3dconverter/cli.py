@@ -12,6 +12,7 @@ from .benchmark import (
     run_surface_bake_experiments,
 )
 from .fixtures import list_benchmark_fixtures
+from .handoff import run_duckagent_handoff
 from .lane_chooser import choose_conversion_lane
 from .pipeline import convert_model_to_color_assets, convert_provider_baked_model_to_assets, convert_repaired_color_transfer_to_assets
 from .production import run_production_conversion, run_repaired_production_conversion
@@ -72,6 +73,23 @@ def main() -> None:
     repaired_production_parser.add_argument("--paint-cleanup-min-component-size", type=int)
     repaired_production_parser.add_argument("--paint-cleanup-passes", type=int, default=4)
     repaired_production_parser.add_argument("--no-fail-closed", action="store_true")
+
+    handoff_parser = subparsers.add_parser("build-duckagent-handoff", help="Build a stable DuckAgent handoff bundle with Bambu-ready artifacts, QA board, manifest, and gates.")
+    handoff_parser.add_argument("source_path")
+    handoff_parser.add_argument("--texture-path")
+    handoff_parser.add_argument("--out-dir", required=True)
+    handoff_parser.add_argument("--object-name")
+    handoff_parser.add_argument("--repair-backend", choices=["trimesh_clean", "pymeshfix_core", "voxel_marching_cubes"], default="voxel_marching_cubes")
+    handoff_parser.add_argument("--target-face-count", type=int, default=250000)
+    handoff_parser.add_argument("--max-colors", type=int, default=8)
+    handoff_parser.add_argument("--min-colors", type=int, default=2)
+    handoff_parser.add_argument("--transfer-strategy", choices=["geometry_transfer_legacy_face_regions_graph", "geometry_transfer_blender_like_bake_face_regions", "geometry_transfer_blender_like_bake_duck_intent", "geometry_transfer_legacy_corner_face_regions"], default="geometry_transfer_blender_like_bake_duck_intent")
+    handoff_parser.add_argument("--repair-smoothing-iterations", type=int)
+    handoff_parser.add_argument("--repair-voxel-divisions", type=int, default=128)
+    handoff_parser.add_argument("--no-paint-cleanup", action="store_true")
+    handoff_parser.add_argument("--paint-cleanup-min-component-size", type=int)
+    handoff_parser.add_argument("--paint-cleanup-passes", type=int, default=4)
+    handoff_parser.add_argument("--no-fail-closed", action="store_true")
 
     lane_chooser_parser = subparsers.add_parser("choose-lane", help="Choose the best report-ready conversion lane without mutating assets.")
     lane_chooser_parser.add_argument("report_paths", nargs="+")
@@ -217,6 +235,25 @@ def main() -> None:
             repair_backend=args.repair_backend,
             target_face_count=args.target_face_count,
             max_colors=args.max_colors,
+            transfer_strategy=args.transfer_strategy,
+            repair_smoothing_iterations=args.repair_smoothing_iterations,
+            repair_voxel_divisions=args.repair_voxel_divisions,
+            paint_cleanup=not bool(args.no_paint_cleanup),
+            paint_cleanup_min_component_size=args.paint_cleanup_min_component_size,
+            paint_cleanup_passes=args.paint_cleanup_passes,
+            fail_closed=not bool(args.no_fail_closed),
+        )
+        print(json.dumps(report, indent=2))
+    elif args.command == "build-duckagent-handoff":
+        report = run_duckagent_handoff(
+            args.source_path,
+            texture_path=args.texture_path,
+            out_dir=args.out_dir,
+            object_name=args.object_name,
+            repair_backend=args.repair_backend,
+            target_face_count=args.target_face_count,
+            max_colors=args.max_colors,
+            min_colors=args.min_colors,
             transfer_strategy=args.transfer_strategy,
             repair_smoothing_iterations=args.repair_smoothing_iterations,
             repair_voxel_divisions=args.repair_voxel_divisions,

@@ -82,6 +82,19 @@ PYTHONPATH=src python -m color3dconverter.cli convert-repaired-production \
   --repair-smoothing-iterations 18
 ```
 
+Build the DuckAgent handoff bundle. This wraps the repaired production lane and adds a stable manifest, QA board, Markdown summary, and readiness gates that DuckAgent can consume without knowing converter internals:
+
+```bash
+PYTHONPATH=src python -m color3dconverter.cli build-duckagent-handoff \
+  /path/to/source.glb \
+  --out-dir /path/to/duckagent_run/paint_to_print \
+  --object-name "Monster Truck Duck" \
+  --max-colors 8 \
+  --repair-backend voxel_marching_cubes \
+  --repair-voxel-divisions 128 \
+  --repair-smoothing-iterations 18
+```
+
 Convert a packaged OBJ ZIP:
 
 ```bash
@@ -226,6 +239,12 @@ Repaired production bundles also include:
 - `_repair_geometry/repaired_geometry.obj`
 - `_cleanup_candidates/paint_region_cleanup/` when cleanup is triggered by noisy component/tiny-island counts
 
+DuckAgent handoff bundles also include:
+- `handoff_manifest.json`
+- `handoff_qa_board.png`
+- `handoff_summary.md`
+- `source_preview.png`
+
 Lane-choice bundles also include:
 - `lane_choice_report.json`
 
@@ -240,7 +259,7 @@ Shading-model repaired conversions also include:
 ## Python API
 
 ```python
-from color3dconverter import choose_conversion_lane, convert_model_to_color_assets, run_production_conversion
+from color3dconverter import choose_conversion_lane, convert_model_to_color_assets, run_duckagent_handoff, run_production_conversion
 
 report = convert_model_to_color_assets(
     "/path/to/model.glb",
@@ -272,6 +291,16 @@ choice = choose_conversion_lane(
 
 print(choice["status"])
 print(choice["selected_lane"])
+
+handoff = run_duckagent_handoff(
+    "/path/to/model.glb",
+    out_dir="/path/to/duckagent_run/paint_to_print",
+    object_name="Monster Truck Duck",
+    max_colors=8,
+)
+
+print(handoff["ready_for_duckagent_handoff"])
+print(handoff["artifacts"]["qa_board_path"])
 ```
 
 ## Production Scope
@@ -322,6 +351,7 @@ Downstream automation can call this package for:
 - repaired GLB conversion
 - repaired-geometry plus transferred-color conversion
 - local validation bundles for Bambu review
+- DuckAgent handoff manifests that expose stable artifact paths and readiness gates
 
 The converter should stay focused on deterministic asset generation and reports. Calling systems should own:
 - run orchestration
@@ -360,6 +390,7 @@ Near-term priorities:
 - [Examples](examples/README.md)
 - [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
 - [Integration Plan](docs/DUCKAGENT_INTEGRATION_PLAN.md)
+- [DuckAgent Handoff Contract](docs/DUCKAGENT_HANDOFF_CONTRACT.md)
 - [Generalization Sample Results](docs/GENERALIZATION_SAMPLE_RESULTS.md)
 - [AI Skin Cleanup Lane Plan](docs/AI_SKIN_CLEANUP_LANE_PLAN.md)
 - [AI Development Guide](docs/AI_DEVELOPMENT_GUIDE.md)
