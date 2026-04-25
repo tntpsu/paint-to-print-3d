@@ -43,6 +43,7 @@ dependencies = [
   "scikit-learn>=1.3",
   "scikit-image>=0.26",
   "scipy>=1.10",
+  "pymeshfix>=0.18",
 ]
 
 [project.optional-dependencies]
