@@ -16,8 +16,16 @@ PYTHONPATH=src python -m color3dconverter.cli build-duckagent-handoff \
   --max-colors 8 \
   --repair-backend voxel_marching_cubes \
   --repair-voxel-divisions 128 \
-  --repair-smoothing-iterations 18
+  --repair-smoothing-iterations 18 \
+  --transfer-strategy geometry_transfer_blender_like_bake_face_regions
 ```
+
+DuckAgent uses the generic Blender-like transfer strategy by default because
+Creative Console concepts can be cow, cat, dog, mascot, costume, or other
+non-yellow ducks. The duck-intent strategy is still available for explicit
+classic-duck cleanup, but it should not be the default for arbitrary character
+ducks because it can incorrectly rewrite warm fur/costume colors as beak-only
+detail.
 
 ## Stable Outputs
 

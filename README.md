@@ -92,8 +92,14 @@ PYTHONPATH=src python -m color3dconverter.cli build-duckagent-handoff \
   --max-colors 8 \
   --repair-backend voxel_marching_cubes \
   --repair-voxel-divisions 128 \
-  --repair-smoothing-iterations 18
+  --repair-smoothing-iterations 18 \
+  --transfer-strategy geometry_transfer_blender_like_bake_face_regions
 ```
+
+DuckAgent defaults this handoff to the generic Blender-like transfer strategy so
+arbitrary character ducks keep their source colors. Use
+`geometry_transfer_blender_like_bake_duck_intent` only when you explicitly want
+classic duck/beak cleanup behavior.
 
 Convert a packaged OBJ ZIP:
 
