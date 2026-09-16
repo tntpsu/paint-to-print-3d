@@ -29,6 +29,7 @@ Many AI or texture-painted 3D models look good on screen but import poorly into 
 - grouped OBJ/MTL export
 - standards-based face-color 3MF export using `colorgroup`
 - export previews, comparison artifacts, and validation reports
+- **parts route** (`parts_bundle`): a part-aware model (one mesh per semantic part, e.g. Tripo `generate_parts`) plus a label map → every part thickened into a closed shell, a voxel core, 57 mm Z-up, one filament slot per part, written as ONE assembly object with per-part extruders (`parts_bundle.3mf`) and a QA board
 
 ## Supported Inputs
 
@@ -308,6 +309,31 @@ handoff = run_duckagent_handoff(
 print(handoff["ready_for_duckagent_handoff"])
 print(handoff["artifacts"]["qa_board_path"])
 ```
+
+### Parts route (part-aware models)
+
+When the generator already splits the figure into parts, skip texture quantization: one flat
+color per part. The package stays offline; the label map (what each part is and its color)
+comes from the caller (DuckAgent's vision labeler or a hand-written file).
+
+```python
+from color3dconverter import parts_bundle
+
+prep = parts_bundle.prepare_parts_labeling_inputs("/path/to/parts.glb", out_dir="/path/to/out", concept_image_path="/path/to/concept.png")
+# → parts_summary.json (measured facts + text descriptions), parts_contact_sheet.png (numbered, best view per part), parts_tiles/, concept_palette.json
+
+label_map = {"source": "override", "status": "ok", "parts": [{"n": 0, "label": "body", "color_name": "red", "hex": "#c82828"}, ...]}
+manifest = parts_bundle.build_parts_bundle("/path/to/parts.glb", out_dir="/path/to/out", label_map=label_map, object_name="Power Ranger Duck", concept_image_path="/path/to/concept.png")
+print(manifest["status"], manifest["summary"]["filament_slots"])
+print(manifest["artifacts"]["bambu_3mf_path"])   # one object, N shell parts + core, Bambu extruder per part
+```
+
+Gates: `parts_loaded`, `labels_validated` (source must be vision/override with a clean validator),
+`parts_repaired_watertight` (shell → recessed fill → fill → MeshFix, each refused if it eats
+the part), `assembly_scaled`, `threemf_structure_valid`, `required_artifacts_exist`; advisory
+`filament_slots_within_ams`, `thin_parts_printable`, `core_filled`. Flat caps across a part's open
+loops are deliberately NOT used: they coincide with the neighbouring part's cap and cut through
+concave dishes (a visor), so parts are thickened shells and a separate core fills the figure.
 
 ## Production Scope
 

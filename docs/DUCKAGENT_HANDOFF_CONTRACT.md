@@ -95,3 +95,21 @@ DuckAgent owns:
 - showing the QA board and failed gates
 - operator approval
 - any publishing or product workflow that uses the printable bundle
+
+## Parts Route Variant
+
+`parts_bundle.build_parts_bundle(...)` writes the same `handoff_manifest.json` / `handoff_qa_board.png` /
+`handoff_summary.md` names with `schema_version` `duckagent.paint_to_print_handoff.v1` and `route: "parts_bundle"`.
+Differences DuckAgent may rely on:
+
+- `artifacts.bambu_3mf_path` is `parts_bundle.3mf`: ONE assembly object whose components are the repaired
+  part shells plus a `core`; `Metadata/model_settings.config` assigns a filament slot (`extruder`) per part.
+  `artifacts.bambu_colorgroup_3mf_path` is the single-mesh per-triangle fallback. `grouped_obj_path` /
+  `grouped_mtl_path` are null.
+- `summary.filament_slots` lists the slots (1-based, largest surface first) with their parts and labels;
+  `summary.part_count` excludes the core, `summary.component_count` includes it.
+- `label_map` (the input) and `materials` (snapped colors, merges) are echoed in the manifest so a review
+  can be reproduced from the file alone.
+- Readiness rule is unchanged: every required gate passed; the label map must come from a vision or
+  override source with a clean validator, never a heuristic.
+
